@@ -179,6 +179,7 @@ private:
     GizmoAxis m_activeGizmoAxis{GizmoAxis::None};
     bool m_gizmoDragging{false};
     QPoint m_gizmoDragStartScreen;
+    QPoint m_gizmoDragLastScreen;
     QVector3D m_gizmoStartTranslation{0.0f, 0.0f, 0.0f};
     QVector3D m_gizmoStartRotation{0.0f, 0.0f, 0.0f};
     QVector3D m_gizmoStartScale{1.0f, 1.0f, 1.0f};

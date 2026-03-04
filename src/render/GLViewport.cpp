@@ -26,6 +26,8 @@ constexpr float kGizmoHoverBandLineWidth = 9.0f;
 constexpr float kGizmoPickTolerancePx = 10.0f;
 constexpr float kGizmoRotatePickBandWidthPx = 12.0f;
 constexpr float kGizmoDragStartThresholdPx = 4.0f;
+constexpr float kGizmoRotateDegreesPerPixel = 0.35f;
+constexpr float kGizmoScalePerPixel = 0.01f;
 }
 
 GLViewport::GLViewport(QWidget *parent)
@@ -578,6 +580,7 @@ void GLViewport::mousePressEvent(QMouseEvent *event)
                 m_activeGizmoAxis = GizmoAxis::None;
                 m_pressedGizmoAxis = m_hoveredGizmoAxis;
                 m_gizmoDragStartScreen = event->pos();
+                m_gizmoDragLastScreen = event->pos();
                 m_gizmoStartTranslation = selected->translation;
                 m_gizmoStartRotation = selected->rotationEuler;
                 m_gizmoStartScale = selected->scale;
@@ -616,7 +619,8 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
         if (selected != nullptr) {
             const QVector3D center = selectedModelWorldCenter(*selected);
             const float worldPerPixel = worldUnitsPerPixelAt(center);
-            const QPoint delta = event->pos() - m_gizmoDragStartScreen;
+            const QPoint totalDelta = event->pos() - m_gizmoDragStartScreen;
+            const QPoint delta = event->pos() - m_gizmoDragLastScreen;
 
             const QVector3D axisVector = gizmoAxisVector(m_activeGizmoAxis, *selected);
 
@@ -631,15 +635,16 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
                 axisDir.normalize();
             }
             const float signedPixels = QVector2D::dotProduct(QVector2D(delta), axisDir);
+            const float totalSignedPixels = QVector2D::dotProduct(QVector2D(totalDelta), axisDir);
 
-            QVector3D translation = m_gizmoStartTranslation;
-            QVector3D rotation = m_gizmoStartRotation;
-            QVector3D scale = m_gizmoStartScale;
+            QVector3D translation = selected->translation;
+            QVector3D rotation = selected->rotationEuler;
+            QVector3D scale = selected->scale;
 
             if (m_gizmoMode == GizmoMode::Translate) {
                 translation += axisVector * (signedPixels * worldPerPixel);
             } else if (m_gizmoMode == GizmoMode::Rotate) {
-                const float rotateDelta = signedPixels * 0.35f;
+                const float rotateDelta = totalSignedPixels * kGizmoRotateDegreesPerPixel;
                 if (m_activeGizmoAxis == GizmoAxis::X) {
                     rotation.setX(m_gizmoStartRotation.x() + rotateDelta);
                 } else if (m_activeGizmoAxis == GizmoAxis::Y) {
@@ -648,19 +653,20 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
                     rotation.setZ(m_gizmoStartRotation.z() + rotateDelta);
                 }
             } else if (m_gizmoMode == GizmoMode::Scale) {
-                const float scaleFactor = std::max(0.01f, 1.0f + signedPixels * 0.01f);
+                const float scaleFactor = std::max(0.01f, 1.0f + signedPixels * kGizmoScalePerPixel);
                 if (m_activeGizmoAxis == GizmoAxis::X) {
-                    scale.setX(std::max(0.001f, m_gizmoStartScale.x() * scaleFactor));
+                    scale.setX(std::max(0.001f, selected->scale.x() * scaleFactor));
                 } else if (m_activeGizmoAxis == GizmoAxis::Y) {
-                    scale.setY(std::max(0.001f, m_gizmoStartScale.y() * scaleFactor));
+                    scale.setY(std::max(0.001f, selected->scale.y() * scaleFactor));
                 } else if (m_activeGizmoAxis == GizmoAxis::Z) {
-                    scale.setZ(std::max(0.001f, m_gizmoStartScale.z() * scaleFactor));
+                    scale.setZ(std::max(0.001f, selected->scale.z() * scaleFactor));
                 }
             }
 
             setModelTransform(m_selectedModelId, translation, rotation, scale);
         }
 
+        m_gizmoDragLastScreen = event->pos();
         m_lastMousePos = event->pos();
         event->accept();
         return;
