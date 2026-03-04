@@ -117,6 +117,13 @@ void GLViewport::setGizmoMode(GizmoMode mode)
     if (m_gizmoMode == mode) {
         return;
     }
+
+    if (mode == GizmoMode::None) {
+        m_hoveredGizmoAxis = GizmoAxis::None;
+        m_activeGizmoAxis = GizmoAxis::None;
+        m_gizmoDragging = false;
+    }
+
     m_gizmoMode = mode;
     emit gizmoModeChanged(mode);
     update();
@@ -495,10 +502,12 @@ void GLViewport::paintGL()
         }
     }
 
-    if (const SceneModel *selected = findModel(m_selectedModelId)) {
-        glDisable(GL_DEPTH_TEST);
-        drawGizmo(*selected, view, proj);
-        glEnable(GL_DEPTH_TEST);
+    if (m_gizmoMode != GizmoMode::None) {
+        if (const SceneModel *selected = findModel(m_selectedModelId)) {
+            glDisable(GL_DEPTH_TEST);
+            drawGizmo(*selected, view, proj);
+            glEnable(GL_DEPTH_TEST);
+        }
     }
 
     m_shader.release(this);
@@ -626,7 +635,7 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
                 } else if (m_activeGizmoAxis == GizmoAxis::Z) {
                     rotation.setZ(m_gizmoStartRotation.z() + rotateDelta);
                 }
-            } else {
+            } else if (m_gizmoMode == GizmoMode::Scale) {
                 const float scaleFactor = qMax(0.01f, 1.0f + signedPixels * 0.01f);
                 if (m_activeGizmoAxis == GizmoAxis::X) {
                     scale.setX(qMax(0.001f, m_gizmoStartScale.x() * scaleFactor));
@@ -705,7 +714,7 @@ QPointF GLViewport::projectToScreen(const QVector3D &worldPoint, const QMatrix4x
 
 GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
 {
-    if (m_selectedModelId < 0) {
+    if (m_gizmoMode == GizmoMode::None || m_selectedModelId < 0) {
         return GizmoAxis::None;
     }
     const SceneModel *selected = findModel(m_selectedModelId);
@@ -752,6 +761,10 @@ GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
 
 void GLViewport::drawGizmo(const SceneModel &model, const QMatrix4x4 &view, const QMatrix4x4 &proj)
 {
+    if (m_gizmoMode == GizmoMode::None) {
+        return;
+    }
+
     const QVector3D center = selectedModelWorldCenter(model);
     const float axisLen = worldUnitsPerPixelAt(center) * kGizmoPixelSize;
     const float circleRadius = axisLen * 0.75f;

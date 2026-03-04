@@ -41,6 +41,7 @@ private:
     QAction *m_solidWireOverlayAction{nullptr};
     QAction *m_pointColorVertexAction{nullptr};
     QAction *m_pointColorHeightAction{nullptr};
+    QAction *m_gizmoHideAction{nullptr};
     QAction *m_gizmoTranslateAction{nullptr};
     QAction *m_gizmoRotateAction{nullptr};
     QAction *m_gizmoScaleAction{nullptr};
