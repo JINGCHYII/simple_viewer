@@ -1,9 +1,6 @@
 #include "io/ModelLoader.h"
 
-#include "io/PLYLoader.h"
-#include "io/STLLoader.h"
-
-#include <QFileInfo>
+#include "io/AssimpLoader.h"
 
 bool ModelLoader::load(const QString &path)
 {
@@ -16,33 +13,17 @@ bool ModelLoader::load(const QString &path)
         return false;
     }
 
-    const QString extension = QFileInfo(path).suffix().toLower();
-
-    if (extension == "ply") {
-        PLYLoader loader;
-        if (!loader.load(path, m_meshData, m_pointCloudData, m_isMesh)) {
-            return false;
-        }
-
-        m_isPointCloud = !m_isMesh;
-        if (m_isMesh) {
-            rebuildMeshNormals();
-        }
-        return true;
+    AssimpLoader assimpLoader;
+    if (!assimpLoader.load(path, m_meshData, m_pointCloudData, m_isMesh, true)) {
+        return false;
     }
 
-    if (extension == "stl") {
-        STLLoader loader;
-        if (!loader.load(path, m_meshData)) {
-            return false;
-        }
-
-        m_isMesh = true;
+    m_isPointCloud = !m_pointCloudData.points.empty();
+    if (m_isMesh) {
         rebuildMeshNormals();
-        return true;
     }
 
-    return false;
+    return true;
 }
 
 const MeshData &ModelLoader::meshData() const

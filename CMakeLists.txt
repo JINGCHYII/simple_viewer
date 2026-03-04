@@ -12,6 +12,8 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets OpenGLWidgets)
 find_package(Qt5 QUIET COMPONENTS Gui OpenGL)
+find_package(assimp REQUIRED)
+
 
 set(SIMPLE_VIEWER_SOURCES
     src/app/main.cpp
@@ -21,8 +23,7 @@ set(SIMPLE_VIEWER_SOURCES
     src/render/Mesh.cpp
     src/render/PointCloud.cpp
     src/io/ModelLoader.cpp
-    src/io/PLYLoader.cpp
-    src/io/STLLoader.cpp
+    src/io/AssimpLoader.cpp
     src/camera/Camera.cpp
     src/camera/OrbitCamera.cpp
     src/camera/FlyCamera.cpp
@@ -36,9 +37,8 @@ set(SIMPLE_VIEWER_HEADERS
     src/render/Mesh.h
     src/render/PointCloud.h
     src/io/ModelLoader.h
+    src/io/AssimpLoader.h
     src/io/ModelData.h
-    src/io/PLYLoader.h
-    src/io/STLLoader.h
     src/camera/Camera.h
     src/camera/OrbitCamera.h
     src/camera/FlyCamera.h
@@ -55,6 +55,17 @@ target_link_libraries(simple_viewer PRIVATE
     Qt5::Widgets
     Qt5::OpenGLWidgets
 )
+
+if(TARGET assimp::assimp)
+    target_link_libraries(simple_viewer PRIVATE assimp::assimp)
+elseif(TARGET assimp)
+    target_link_libraries(simple_viewer PRIVATE assimp)
+elseif(TARGET Assimp::assimp)
+    target_link_libraries(simple_viewer PRIVATE Assimp::assimp)
+else()
+    message(FATAL_ERROR "Assimp target not found. Expected assimp::assimp, assimp, or Assimp::assimp")
+endif()
+
 
 if(TARGET Qt5::Gui)
     target_link_libraries(simple_viewer PRIVATE Qt5::Gui)

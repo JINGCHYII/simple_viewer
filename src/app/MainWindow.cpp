@@ -96,7 +96,7 @@ void MainWindow::setupMenus()
         const QString path = QFileDialog::getOpenFileName(this,
                                                           tr("Import mesh"),
                                                           QString(),
-                                                          tr("Mesh Files (*.stl *.ply)"));
+                                                          tr("3D Files (*.obj *.fbx *.dae *.3ds *.glb *.gltf *.stl *.ply *.off *.x *.blend);;All Files (*)"));
         if (!path.isEmpty()) {
             if (!m_viewport->loadModel(path)) {
                 appendLog(tr("导入失败: %1").arg(path), true);
