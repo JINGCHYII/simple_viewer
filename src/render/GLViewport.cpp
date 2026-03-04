@@ -167,7 +167,7 @@ bool GLViewport::loadModel(const QString &path)
 {
     ModelLoader loader;
     if (!loader.load(path)) {
-        emit logMessage(tr("导入失败: %1").arg(path), true);
+        emit logMessage(tr("Import failed: %1").arg(path), true);
         return false;
     }
 
@@ -180,7 +180,7 @@ bool GLViewport::loadModel(const QString &path)
     const auto &vertices = hasMesh ? loader.meshData().vertices : pointData.points;
 
     if (vertices.empty()) {
-        emit logMessage(tr("导入失败(无可用顶点): %1").arg(path), true);
+        emit logMessage(tr("Import failed (no usable vertices): %1").arg(path), true);
         return false;
     }
 
@@ -232,7 +232,7 @@ bool GLViewport::loadModel(const QString &path)
     updateSceneStats();
     frameAll();
     emit modelListChanged();
-    emit logMessage(tr("已导入模型: %1").arg(path), false);
+    emit logMessage(tr("Model imported: %1").arg(path), false);
     update();
     return true;
 }
@@ -296,7 +296,7 @@ bool GLViewport::removeModel(int modelId)
             frameAll();
         }
         emit modelListChanged();
-        emit logMessage(tr("已删除模型: %1").arg(removedName), false);
+        emit logMessage(tr("Model removed: %1").arg(removedName), false);
         update();
         return true;
     }
@@ -553,7 +553,7 @@ void GLViewport::uploadDefaultMesh()
 
     SceneModel model;
     model.id = m_nextModelId++;
-    model.name = tr("默认立方体");
+    model.name = tr("Default cube");
     model.path = tr("(builtin)");
     model.hasMesh = true;
     model.hasPointCloud = true;
