@@ -167,7 +167,7 @@ private:
     void drawGizmoLine(const QVector3D &start, const QVector3D &end, const QVector3D &color,
                        const QMatrix4x4 &view, const QMatrix4x4 &proj);
     void drawGizmoCircle(const QVector3D &center, const QVector3D &axis, float radius, const QVector3D &color,
-                         const QMatrix4x4 &view, const QMatrix4x4 &proj);
+                         const QMatrix4x4 &view, const QMatrix4x4 &proj, float lineWidth = 3.0f);
 
     QPoint m_lastMousePos;
     OrbitCamera m_orbitCamera;
@@ -178,6 +178,7 @@ private:
     GizmoMode m_gizmoMode{GizmoMode::Translate};
     GizmoSpace m_gizmoSpace{GizmoSpace::World};
     GizmoAxis m_hoveredGizmoAxis{GizmoAxis::None};
+    GizmoAxis m_pressedGizmoAxis{GizmoAxis::None};
     GizmoAxis m_activeGizmoAxis{GizmoAxis::None};
     bool m_gizmoDragging{false};
     QPoint m_gizmoDragStartScreen;
