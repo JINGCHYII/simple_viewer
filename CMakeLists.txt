@@ -23,6 +23,7 @@ set(SIMPLE_VIEWER_SOURCES
     src/io/ModelLoader.cpp
     src/io/PLYLoader.cpp
     src/io/STLLoader.cpp
+    src/camera/Camera.cpp
     src/camera/OrbitCamera.cpp
     src/camera/FlyCamera.cpp
 )
@@ -37,6 +38,7 @@ set(SIMPLE_VIEWER_HEADERS
     src/io/ModelData.h
     src/io/PLYLoader.h
     src/io/STLLoader.h
+    src/camera/Camera.h
     src/camera/OrbitCamera.h
     src/camera/FlyCamera.h
 )

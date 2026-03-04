@@ -34,6 +34,13 @@ void MainWindow::setupMenus()
     m_flyCameraAction->setCheckable(true);
     cameraGroup->addAction(m_flyCameraAction);
 
+    connect(m_orbitCameraAction, &QAction::triggered, this, [this]() {
+        m_viewport->setCameraMode(GLViewport::CameraMode::Orbit);
+    });
+    connect(m_flyCameraAction, &QAction::triggered, this, [this]() {
+        m_viewport->setCameraMode(GLViewport::CameraMode::Fly);
+    });
+
     auto *shadingMenu = viewMenu->addMenu(tr("Shading"));
     auto *shadingGroup = new QActionGroup(this);
 
