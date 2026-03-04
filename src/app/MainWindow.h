@@ -20,7 +20,8 @@ private:
     QAction *m_importAction{nullptr};
     QAction *m_orbitCameraAction{nullptr};
     QAction *m_flyCameraAction{nullptr};
-    QAction *m_phongShadingAction{nullptr};
+    QAction *m_solidShadingAction{nullptr};
     QAction *m_wireframeShadingAction{nullptr};
+    QAction *m_solidWireOverlayAction{nullptr};
     QAction *m_pointCloudAction{nullptr};
 };
