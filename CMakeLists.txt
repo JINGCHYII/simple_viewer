@@ -44,12 +44,38 @@ set(SIMPLE_VIEWER_HEADERS
     src/camera/FlyCamera.h
 )
 
+set(IMGUIZMO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ImGuizmo")
+set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui")
+set(SIMPLE_VIEWER_HAS_IMGUIZMO OFF)
+if (EXISTS "${IMGUIZMO_DIR}/ImGuizmo.cpp" AND EXISTS "${IMGUIZMO_DIR}/ImGuizmo.h"
+    AND EXISTS "${IMGUI_DIR}/imgui.cpp" AND EXISTS "${IMGUI_DIR}/imgui.h"
+    AND EXISTS "${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp")
+    set(SIMPLE_VIEWER_HAS_IMGUIZMO ON)
+    list(APPEND SIMPLE_VIEWER_SOURCES
+        ${IMGUIZMO_DIR}/ImGuizmo.cpp
+        ${IMGUI_DIR}/imgui.cpp
+        ${IMGUI_DIR}/imgui_draw.cpp
+        ${IMGUI_DIR}/imgui_tables.cpp
+        ${IMGUI_DIR}/imgui_widgets.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+    )
+endif()
+
 add_executable(simple_viewer
     ${SIMPLE_VIEWER_SOURCES}
     ${SIMPLE_VIEWER_HEADERS}
 )
 
 target_include_directories(simple_viewer PRIVATE src)
+if (SIMPLE_VIEWER_HAS_IMGUIZMO)
+    target_include_directories(simple_viewer PRIVATE
+        ${IMGUIZMO_DIR}
+        ${IMGUI_DIR}
+        ${IMGUI_DIR}/backends
+    )
+    target_compile_definitions(simple_viewer PRIVATE SIMPLE_VIEWER_HAS_IMGUIZMO=1)
+endif()
+
 
 target_compile_definitions(simple_viewer PRIVATE
     $<$<PLATFORM_ID:Windows>:NOMINMAX>

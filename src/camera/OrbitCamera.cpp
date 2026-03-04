@@ -50,8 +50,8 @@ void OrbitCamera::handleMouseMove(const QPoint &pos)
     m_lastMousePos = pos;
 
     if (m_rotating) {
-        const QQuaternion yawRot = QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), delta.x() * kRotateSensitivity);
-        const QQuaternion pitchRot = QQuaternion::fromAxisAndAngle(right(), -delta.y() * kRotateSensitivity);
+        const QQuaternion yawRot = QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), -delta.x() * kRotateSensitivity);
+        const QQuaternion pitchRot = QQuaternion::fromAxisAndAngle(right(), delta.y() * kRotateSensitivity);
         m_orientation = (pitchRot * yawRot * m_orientation).normalized();
     }
 
