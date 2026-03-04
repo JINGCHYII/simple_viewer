@@ -6,6 +6,11 @@ class QAction;
 class GLViewport;
 class QLabel;
 class QSlider;
+class QTreeWidget;
+class QTreeWidgetItem;
+class QTabWidget;
+class QTextEdit;
+class QDoubleSpinBox;
 
 class MainWindow : public QMainWindow
 {
@@ -17,7 +22,12 @@ public:
 private:
     void setupMenus();
     void setupStatusBar();
+    void setupPanels();
+    void setupTheme();
     void refreshStatusLabels();
+    void refreshModelTree();
+    void refreshTransformPanel();
+    void appendLog(const QString &message, bool isError = false);
 
     GLViewport *m_viewport{nullptr};
 
@@ -36,6 +46,21 @@ private:
     QLabel *m_meshStatsLabel{nullptr};
     QLabel *m_shadingStatusLabel{nullptr};
 
+    QTreeWidget *m_sceneTree{nullptr};
+    QTabWidget *m_propertyTabs{nullptr};
+    QTextEdit *m_logView{nullptr};
+
+    QDoubleSpinBox *m_txSpin{nullptr};
+    QDoubleSpinBox *m_tySpin{nullptr};
+    QDoubleSpinBox *m_tzSpin{nullptr};
+    QDoubleSpinBox *m_rxSpin{nullptr};
+    QDoubleSpinBox *m_rySpin{nullptr};
+    QDoubleSpinBox *m_rzSpin{nullptr};
+    QDoubleSpinBox *m_sxSpin{nullptr};
+    QDoubleSpinBox *m_sySpin{nullptr};
+    QDoubleSpinBox *m_szSpin{nullptr};
+
     int m_vertexCount{0};
     int m_faceCount{0};
+    bool m_syncingUi{false};
 };

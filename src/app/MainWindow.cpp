@@ -2,23 +2,39 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QDateTime>
+#include <QDockWidget>
 #include <QFileDialog>
+#include <QFormLayout>
+#include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QSlider>
 #include <QStatusBar>
+#include <QTabWidget>
+#include <QTextEdit>
+#include <QTreeWidget>
+#include <QVBoxLayout>
 #include <QWidgetAction>
+#include <QDoubleSpinBox>
 
 #include "render/GLViewport.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
+    setWindowTitle(tr("Simple Viewer Pro"));
+    resize(1400, 900);
+
     m_viewport = new GLViewport(this);
     setCentralWidget(m_viewport);
+
     setupMenus();
+    setupPanels();
     setupStatusBar();
+    setupTheme();
 
     m_vertexCount = m_viewport->vertexCount();
     m_faceCount = m_viewport->faceCount();
@@ -34,7 +50,20 @@ MainWindow::MainWindow(QWidget *parent)
         m_faceCount = faceCount;
         refreshStatusLabels();
     });
+    connect(m_viewport, &GLViewport::modelListChanged, this, [this]() {
+        refreshModelTree();
+        refreshTransformPanel();
+    });
+    connect(m_viewport, &GLViewport::selectedModelChanged, this, [this](int) {
+        refreshModelTree();
+        refreshTransformPanel();
+    });
+    connect(m_viewport, &GLViewport::logMessage, this, [this](const QString &message, bool isError) {
+        appendLog(message, isError);
+    });
 
+    refreshModelTree();
+    refreshTransformPanel();
     refreshStatusLabels();
 }
 
@@ -48,7 +77,9 @@ void MainWindow::setupMenus()
                                                           QString(),
                                                           tr("Mesh Files (*.stl *.ply)"));
         if (!path.isEmpty()) {
-            m_viewport->loadModel(path);
+            if (!m_viewport->loadModel(path)) {
+                appendLog(tr("导入失败: %1").arg(path), true);
+            }
         }
     });
 
@@ -154,6 +185,161 @@ void MainWindow::setupStatusBar()
     statusBar()->addPermanentWidget(m_shadingStatusLabel);
 }
 
+void MainWindow::setupPanels()
+{
+    auto *sceneDock = new QDockWidget(tr("Scene Tree"), this);
+    sceneDock->setObjectName("SceneDock");
+    m_sceneTree = new QTreeWidget(sceneDock);
+    m_sceneTree->setHeaderLabels({tr("模型"), tr("顶点"), tr("面")});
+    m_sceneTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_sceneTree->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_sceneTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    sceneDock->setWidget(m_sceneTree);
+    addDockWidget(Qt::LeftDockWidgetArea, sceneDock);
+
+    connect(m_sceneTree, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
+        if (m_syncingUi || column != 0 || item == nullptr) {
+            return;
+        }
+        const int modelId = item->data(0, Qt::UserRole).toInt();
+        const bool visible = item->checkState(0) == Qt::Checked;
+        m_viewport->setModelVisible(modelId, visible);
+    });
+    connect(m_sceneTree, &QTreeWidget::itemSelectionChanged, this, [this]() {
+        if (m_syncingUi || m_sceneTree->selectedItems().isEmpty()) {
+            return;
+        }
+        const int modelId = m_sceneTree->selectedItems().front()->data(0, Qt::UserRole).toInt();
+        m_viewport->selectModel(modelId);
+    });
+    connect(m_sceneTree, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
+        QTreeWidgetItem *item = m_sceneTree->itemAt(pos);
+        if (item == nullptr) {
+            return;
+        }
+        QMenu menu(this);
+        QAction *deleteAction = menu.addAction(tr("删除模型"));
+        QAction *selected = menu.exec(m_sceneTree->viewport()->mapToGlobal(pos));
+        if (selected == deleteAction) {
+            const int modelId = item->data(0, Qt::UserRole).toInt();
+            m_viewport->removeModel(modelId);
+        }
+    });
+
+    auto *propertyDock = new QDockWidget(tr("Inspector"), this);
+    propertyDock->setObjectName("InspectorDock");
+    m_propertyTabs = new QTabWidget(propertyDock);
+    auto *transformTab = new QWidget(m_propertyTabs);
+    auto *formLayout = new QFormLayout(transformTab);
+
+    auto createSpin = [this](double min, double max, double step) {
+        auto *spin = new QDoubleSpinBox(this);
+        spin->setRange(min, max);
+        spin->setDecimals(3);
+        spin->setSingleStep(step);
+        return spin;
+    };
+
+    m_txSpin = createSpin(-10000.0, 10000.0, 0.1);
+    m_tySpin = createSpin(-10000.0, 10000.0, 0.1);
+    m_tzSpin = createSpin(-10000.0, 10000.0, 0.1);
+    m_rxSpin = createSpin(-360.0, 360.0, 1.0);
+    m_rySpin = createSpin(-360.0, 360.0, 1.0);
+    m_rzSpin = createSpin(-360.0, 360.0, 1.0);
+    m_sxSpin = createSpin(0.001, 1000.0, 0.05);
+    m_sySpin = createSpin(0.001, 1000.0, 0.05);
+    m_szSpin = createSpin(0.001, 1000.0, 0.05);
+
+    formLayout->addRow(tr("Translate X"), m_txSpin);
+    formLayout->addRow(tr("Translate Y"), m_tySpin);
+    formLayout->addRow(tr("Translate Z"), m_tzSpin);
+    formLayout->addRow(tr("Rotate X"), m_rxSpin);
+    formLayout->addRow(tr("Rotate Y"), m_rySpin);
+    formLayout->addRow(tr("Rotate Z"), m_rzSpin);
+    formLayout->addRow(tr("Scale X"), m_sxSpin);
+    formLayout->addRow(tr("Scale Y"), m_sySpin);
+    formLayout->addRow(tr("Scale Z"), m_szSpin);
+
+    auto applyTransform = [this]() {
+        if (m_syncingUi) {
+            return;
+        }
+        const int id = m_viewport->selectedModelId();
+        if (id < 0) {
+            return;
+        }
+        m_viewport->setModelTransform(id,
+                                      QVector3D(m_txSpin->value(), m_tySpin->value(), m_tzSpin->value()),
+                                      QVector3D(m_rxSpin->value(), m_rySpin->value(), m_rzSpin->value()),
+                                      QVector3D(m_sxSpin->value(), m_sySpin->value(), m_szSpin->value()));
+    };
+
+    for (QDoubleSpinBox *spin : {m_txSpin, m_tySpin, m_tzSpin, m_rxSpin, m_rySpin, m_rzSpin, m_sxSpin, m_sySpin, m_szSpin}) {
+        connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [applyTransform](double) {
+            applyTransform();
+        });
+    }
+
+    m_propertyTabs->addTab(transformTab, tr("Transform"));
+    propertyDock->setWidget(m_propertyTabs);
+    addDockWidget(Qt::RightDockWidgetArea, propertyDock);
+
+    auto *logDock = new QDockWidget(tr("Log Console"), this);
+    logDock->setObjectName("LogDock");
+    m_logView = new QTextEdit(logDock);
+    m_logView->setReadOnly(true);
+    logDock->setWidget(m_logView);
+    addDockWidget(Qt::BottomDockWidgetArea, logDock);
+
+    appendLog(tr("Viewer 已启动"));
+}
+
+void MainWindow::setupTheme()
+{
+    setStyleSheet(R"(
+QMainWindow {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #111827, stop:1 #1f2937);
+}
+QMenuBar, QMenu, QStatusBar {
+    background-color: #0f172a;
+    color: #e2e8f0;
+}
+QDockWidget {
+    color: #f8fafc;
+    font-weight: 600;
+}
+QDockWidget::title {
+    text-align: left;
+    padding-left: 8px;
+    background: #1e293b;
+    border-bottom: 1px solid #334155;
+}
+QTreeWidget, QTextEdit, QTabWidget::pane, QDoubleSpinBox {
+    background-color: #0b1220;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+}
+QTreeWidget::item:selected {
+    background-color: #2563eb;
+}
+QTabBar::tab {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 6px 12px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+QTabBar::tab:selected {
+    background: #2563eb;
+}
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+    background: #1e293b;
+    width: 16px;
+}
+)");
+}
+
 void MainWindow::refreshStatusLabels()
 {
     const QString cameraModeText = m_viewport->cameraMode() == GLViewport::CameraMode::Orbit ? tr("Orbit") : tr("Fly");
@@ -174,7 +360,7 @@ void MainWindow::refreshStatusLabels()
     }
 
     m_cameraStatusLabel->setText(tr("Camera: %1").arg(cameraModeText));
-    m_meshStatsLabel->setText(tr("Vertices: %1  Faces: %2").arg(m_vertexCount).arg(m_faceCount));
+    m_meshStatsLabel->setText(tr("Scene Vertices: %1  Faces: %2").arg(m_vertexCount).arg(m_faceCount));
     m_shadingStatusLabel->setText(tr("Shading: %1").arg(renderModeText));
 
     m_orbitCameraAction->setChecked(m_viewport->cameraMode() == GLViewport::CameraMode::Orbit);
@@ -184,4 +370,62 @@ void MainWindow::refreshStatusLabels()
     m_wireframeShadingAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::Wireframe);
     m_solidWireOverlayAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::SolidWireOverlay);
     m_pointCloudAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::PointCloud);
+}
+
+void MainWindow::refreshModelTree()
+{
+    m_syncingUi = true;
+    m_sceneTree->clear();
+
+    const int selectedId = m_viewport->selectedModelId();
+    for (const GLViewport::ModelInfo &info : m_viewport->modelInfos()) {
+        auto *item = new QTreeWidgetItem(m_sceneTree);
+        item->setText(0, info.name);
+        item->setText(1, QString::number(info.vertexCount));
+        item->setText(2, QString::number(info.faceCount));
+        item->setData(0, Qt::UserRole, info.id);
+        item->setCheckState(0, info.visible ? Qt::Checked : Qt::Unchecked);
+        item->setToolTip(0, info.path);
+
+        if (info.id == selectedId) {
+            m_sceneTree->setCurrentItem(item);
+        }
+    }
+    m_syncingUi = false;
+}
+
+void MainWindow::refreshTransformPanel()
+{
+    m_syncingUi = true;
+    const int selectedId = m_viewport->selectedModelId();
+    bool found = false;
+    for (const GLViewport::ModelInfo &info : m_viewport->modelInfos()) {
+        if (info.id != selectedId) {
+            continue;
+        }
+        m_txSpin->setValue(info.translation.x());
+        m_tySpin->setValue(info.translation.y());
+        m_tzSpin->setValue(info.translation.z());
+        m_rxSpin->setValue(info.rotationEuler.x());
+        m_rySpin->setValue(info.rotationEuler.y());
+        m_rzSpin->setValue(info.rotationEuler.z());
+        m_sxSpin->setValue(info.scale.x());
+        m_sySpin->setValue(info.scale.y());
+        m_szSpin->setValue(info.scale.z());
+        found = true;
+        break;
+    }
+
+    for (QDoubleSpinBox *spin : {m_txSpin, m_tySpin, m_tzSpin, m_rxSpin, m_rySpin, m_rzSpin, m_sxSpin, m_sySpin, m_szSpin}) {
+        spin->setEnabled(found);
+    }
+    m_syncingUi = false;
+}
+
+void MainWindow::appendLog(const QString &message, bool isError)
+{
+    const QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss");
+    const QString level = isError ? "ERROR" : "INFO";
+    const QString color = isError ? "#f87171" : "#93c5fd";
+    m_logView->append(QString("<span style='color:%1'>[%2][%3] %4</span>").arg(color, timestamp, level, message.toHtmlEscaped()));
 }
