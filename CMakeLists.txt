@@ -26,6 +26,7 @@ set(SIMPLE_VIEWER_SOURCES
     src/camera/Camera.cpp
     src/camera/OrbitCamera.cpp
     src/camera/FlyCamera.cpp
+    src/render/shaders.qrc
 )
 
 set(SIMPLE_VIEWER_HEADERS

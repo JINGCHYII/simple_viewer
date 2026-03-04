@@ -8,6 +8,8 @@
 
 #include "camera/FlyCamera.h"
 #include "camera/OrbitCamera.h"
+#include "render/Mesh.h"
+#include "render/Shader.h"
 
 class GLViewport : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core
 {
@@ -19,10 +21,22 @@ public:
         Fly
     };
 
+    enum class RenderMode {
+        Solid,
+        Wireframe,
+        SolidWireOverlay,
+    };
+
     explicit GLViewport(QWidget *parent = nullptr);
+    ~GLViewport() override;
 
     void setCameraMode(CameraMode mode);
     CameraMode cameraMode() const;
+
+    void setRenderMode(RenderMode mode);
+    RenderMode renderMode() const;
+
+    bool loadModel(const QString &path);
 
 protected:
     void initializeGL() override;
@@ -39,11 +53,16 @@ protected:
 private:
     Camera *currentCamera();
     const Camera *currentCamera() const;
+    void uploadDefaultMesh();
 
     QPoint m_lastMousePos;
     OrbitCamera m_orbitCamera;
     FlyCamera m_flyCamera;
     CameraMode m_cameraMode{CameraMode::Orbit};
+    RenderMode m_renderMode{RenderMode::Solid};
+
+    Mesh m_mesh;
+    Shader m_shader;
 
     QElapsedTimer m_frameTimer;
     QTimer m_updateTimer;

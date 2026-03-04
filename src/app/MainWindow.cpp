@@ -2,6 +2,7 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QFileDialog>
 #include <QMenu>
 #include <QMenuBar>
 
@@ -19,6 +20,15 @@ void MainWindow::setupMenus()
 {
     auto *fileMenu = menuBar()->addMenu(tr("&File"));
     m_importAction = fileMenu->addAction(tr("&Import"));
+    connect(m_importAction, &QAction::triggered, this, [this]() {
+        const QString path = QFileDialog::getOpenFileName(this,
+                                                          tr("Import mesh"),
+                                                          QString(),
+                                                          tr("Mesh Files (*.stl *.ply)"));
+        if (!path.isEmpty()) {
+            m_viewport->loadModel(path);
+        }
+    });
 
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
 
@@ -44,14 +54,28 @@ void MainWindow::setupMenus()
     auto *shadingMenu = viewMenu->addMenu(tr("Shading"));
     auto *shadingGroup = new QActionGroup(this);
 
-    m_phongShadingAction = shadingMenu->addAction(tr("Phong"));
-    m_phongShadingAction->setCheckable(true);
-    m_phongShadingAction->setChecked(true);
-    shadingGroup->addAction(m_phongShadingAction);
+    m_solidShadingAction = shadingMenu->addAction(tr("Solid"));
+    m_solidShadingAction->setCheckable(true);
+    m_solidShadingAction->setChecked(true);
+    shadingGroup->addAction(m_solidShadingAction);
 
     m_wireframeShadingAction = shadingMenu->addAction(tr("Wireframe"));
     m_wireframeShadingAction->setCheckable(true);
     shadingGroup->addAction(m_wireframeShadingAction);
+
+    m_solidWireOverlayAction = shadingMenu->addAction(tr("Solid + Wireframe Overlay"));
+    m_solidWireOverlayAction->setCheckable(true);
+    shadingGroup->addAction(m_solidWireOverlayAction);
+
+    connect(m_solidShadingAction, &QAction::triggered, this, [this]() {
+        m_viewport->setRenderMode(GLViewport::RenderMode::Solid);
+    });
+    connect(m_wireframeShadingAction, &QAction::triggered, this, [this]() {
+        m_viewport->setRenderMode(GLViewport::RenderMode::Wireframe);
+    });
+    connect(m_solidWireOverlayAction, &QAction::triggered, this, [this]() {
+        m_viewport->setRenderMode(GLViewport::RenderMode::SolidWireOverlay);
+    });
 
     m_pointCloudAction = viewMenu->addAction(tr("Point Cloud"));
     m_pointCloudAction->setCheckable(true);

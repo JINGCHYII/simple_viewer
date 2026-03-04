@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/shaders">
+        <file>shaders/basic.vert</file>
+        <file>shaders/blinn_phong.frag</file>
+    </qresource>
+</RCC>
