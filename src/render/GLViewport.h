@@ -65,6 +65,9 @@ public:
     void setPointColorMode(PointColorMode mode);
     PointColorMode pointColorMode() const;
 
+    void setAutoFitEnabled(bool enabled);
+    bool autoFitEnabled() const;
+
     int vertexCount() const;
     int faceCount() const;
 
@@ -138,6 +141,7 @@ private:
     RenderMode m_renderMode{RenderMode::Solid};
     PointColorMode m_pointColorMode{PointColorMode::VertexColor};
     float m_pointSize{3.0f};
+    bool m_autoFitEnabled{true};
 
     QVector<SceneModel> m_models;
     int m_nextModelId{1};
