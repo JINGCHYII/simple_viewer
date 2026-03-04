@@ -49,6 +49,11 @@ public:
         Z,
     };
 
+    enum class GizmoSpace {
+        World,
+        Local,
+    };
+
     struct ModelInfo
     {
         int id{-1};
@@ -80,6 +85,9 @@ public:
     void setGizmoMode(GizmoMode mode);
     GizmoMode gizmoMode() const;
 
+    void setGizmoSpace(GizmoSpace space);
+    GizmoSpace gizmoSpace() const;
+
     void setAutoFitEnabled(bool enabled);
     bool autoFitEnabled() const;
 
@@ -104,6 +112,7 @@ signals:
     void cameraModeChanged(GLViewport::CameraMode mode);
     void renderModeChanged(GLViewport::RenderMode mode);
     void gizmoModeChanged(GLViewport::GizmoMode mode);
+    void gizmoSpaceChanged(GLViewport::GizmoSpace space);
     void modelStatsChanged(int vertexCount, int faceCount);
     void modelListChanged();
     void selectedModelChanged(int modelId);
@@ -152,6 +161,7 @@ private:
     QVector3D selectedModelWorldCenter(const SceneModel &model) const;
     float worldUnitsPerPixelAt(const QVector3D &worldPoint) const;
     QPointF projectToScreen(const QVector3D &worldPoint, const QMatrix4x4 &viewProj) const;
+    QVector3D gizmoAxisVector(GizmoAxis axis, const SceneModel &model) const;
     GizmoAxis pickGizmoAxis(const QPoint &screenPos) const;
     void drawGizmo(const SceneModel &model, const QMatrix4x4 &view, const QMatrix4x4 &proj);
     void drawGizmoLine(const QVector3D &start, const QVector3D &end, const QVector3D &color,
@@ -166,6 +176,7 @@ private:
     RenderMode m_renderMode{RenderMode::Solid};
     PointColorMode m_pointColorMode{PointColorMode::VertexColor};
     GizmoMode m_gizmoMode{GizmoMode::Translate};
+    GizmoSpace m_gizmoSpace{GizmoSpace::World};
     GizmoAxis m_hoveredGizmoAxis{GizmoAxis::None};
     GizmoAxis m_activeGizmoAxis{GizmoAxis::None};
     bool m_gizmoDragging{false};
