@@ -7,6 +7,8 @@ layout (location = 2) in vec3 aColor;
 uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProj;
+uniform int uIsPointRender;
+uniform float uPointSize;
 
 out VS_OUT {
     vec3 worldPos;
@@ -21,4 +23,5 @@ void main()
     vs_out.normal = mat3(transpose(inverse(uModel))) * aNormal;
     vs_out.color = aColor;
     gl_Position = uProj * uView * world;
+    gl_PointSize = (uIsPointRender != 0) ? uPointSize : 1.0;
 }
