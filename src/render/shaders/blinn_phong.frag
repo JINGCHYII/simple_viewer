@@ -44,12 +44,14 @@ void main()
         baseColor = mix(vec3(0.2, 0.45, 0.95), vec3(0.95, 0.35, 0.2), height);
     }
 
-    vec3 ambient = uAmbientStrength * uAmbientColor * baseColor;
+    float hemi = clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 hemiAmbient = mix(uAmbientColor * vec3(0.38, 0.38, 0.40), uAmbientColor, hemi);
+    vec3 ambient = uAmbientStrength * hemiAmbient * baseColor;
     vec3 diffuse = diff * uLightColor * baseColor;
     vec3 specular = uSpecularStrength * spec * uLightColor;
 
     vec3 color = ambient + diffuse + specular;
-    color = color / (vec3(1.0) + color);
+    color = (color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14);
     color = clamp(color, 0.0, 1.0);
     color = pow(color, vec3(1.0 / 2.2));
 

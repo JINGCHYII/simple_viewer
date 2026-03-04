@@ -368,8 +368,8 @@ void GLViewport::paintGL()
     const QMatrix4x4 view = currentCamera()->viewMatrix();
     const QMatrix4x4 proj = currentCamera()->projMatrix(aspect);
 
-    const QVector3D lightPos(3.0f, 3.5f, 3.0f);
     const QVector3D viewPos = currentCamera()->position();
+    const QVector3D lightPos = viewPos + QVector3D(0.8f, 1.1f, 0.6f).normalized() * qMax(2.0f, m_bboxRadius * 2.8f);
 
     m_shader.bind(this);
     m_shader.setMat4(this, "uView", view);
@@ -380,8 +380,8 @@ void GLViewport::paintGL()
     constexpr float baseAmbientStrength = 0.12f;
     constexpr float baseSpecularStrength = 0.24f;
 
-    m_shader.setVec3(this, "uAmbientColor", QVector3D(1.0f, 1.0f, 1.0f));
-    m_shader.setVec3(this, "uLightColor", QVector3D(0.88f, 0.88f, 0.88f));
+    m_shader.setVec3(this, "uAmbientColor", QVector3D(0.90f, 0.92f, 0.95f));
+    m_shader.setVec3(this, "uLightColor", QVector3D(0.94f, 0.94f, 0.93f));
     m_shader.setFloat(this, "uAmbientStrength", baseAmbientStrength);
     m_shader.setFloat(this, "uSpecularStrength", baseSpecularStrength);
     m_shader.setFloat(this, "uShininess", 48.0f);
@@ -407,11 +407,11 @@ void GLViewport::paintGL()
         m_shader.setVec3(this, "uBoundsMax", model.bboxMax);
 
         const bool selected = model.id == m_selectedModelId;
-        m_shader.setVec3(this, "uMaterialColor", selected ? QVector3D(0.24f, 0.74f, 0.96f) : QVector3D(0.72f, 0.74f, 0.78f));
+        m_shader.setVec3(this, "uMaterialColor", selected ? QVector3D(1.0f, 0.56f, 0.22f) : QVector3D(0.72f, 0.74f, 0.78f));
 
         if (drawPoints) {
             m_shader.setInt(this, "uEnableSpecular", 0);
-            m_shader.setFloat(this, "uAmbientStrength", selected ? 0.16f : 0.12f);
+            m_shader.setFloat(this, "uAmbientStrength", selected ? 0.18f : 0.12f);
             m_shader.setFloat(this, "uSpecularStrength", 0.0f);
             model.pointCloud.draw(this);
             m_shader.setFloat(this, "uAmbientStrength", baseAmbientStrength);
