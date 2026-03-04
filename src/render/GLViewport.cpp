@@ -251,7 +251,6 @@ bool GLViewport::setModelVisible(int modelId, bool visible)
     }
     model->visible = visible;
     recomputeSceneBounds();
-    emit modelListChanged();
     update();
     return true;
 }

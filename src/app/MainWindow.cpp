@@ -10,17 +10,38 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QMenu>
+#include <QIcon>
 #include <QMenuBar>
 #include <QSlider>
 #include <QStatusBar>
 #include <QTabWidget>
 #include <QTextEdit>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWidgetAction>
 #include <QDoubleSpinBox>
 
 #include "render/GLViewport.h"
+
+namespace {
+
+QIcon visibilityIcon(bool visible)
+{
+    return QIcon(visible ? QStringLiteral(":/icons/eye_open.svg") : QStringLiteral(":/icons/eye_closed.svg"));
+}
+
+void setVisibilityButtonState(QToolButton *button, bool visible)
+{
+    if (button == nullptr) {
+        return;
+    }
+    button->setProperty("visibleState", visible);
+    button->setIcon(visibilityIcon(visible));
+    button->setToolTip(visible ? QObject::tr("隐藏模型") : QObject::tr("显示模型"));
+}
+
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -190,21 +211,17 @@ void MainWindow::setupPanels()
     auto *sceneDock = new QDockWidget(tr("Scene Tree"), this);
     sceneDock->setObjectName("SceneDock");
     m_sceneTree = new QTreeWidget(sceneDock);
-    m_sceneTree->setHeaderLabels({tr("模型"), tr("顶点"), tr("面")});
+    m_sceneTree->setHeaderLabels({tr("模型"), tr("顶点"), tr("面"), QStringLiteral(" ")});
     m_sceneTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_sceneTree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_sceneTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_sceneTree->header()->setSectionResizeMode(3, QHeaderView::Fixed);
+    m_sceneTree->setColumnWidth(3, 36);
     m_sceneTree->setSelectionMode(QAbstractItemView::SingleSelection);
     m_sceneTree->setContextMenuPolicy(Qt::CustomContextMenu);
     sceneDock->setWidget(m_sceneTree);
     addDockWidget(Qt::LeftDockWidgetArea, sceneDock);
 
-    connect(m_sceneTree, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item, int column) {
-        if (m_syncingUi || column != 0 || item == nullptr) {
-            return;
-        }
-        const int modelId = item->data(0, Qt::UserRole).toInt();
-        const bool visible = item->checkState(0) == Qt::Checked;
-        m_viewport->setModelVisible(modelId, visible);
-    });
     connect(m_sceneTree, &QTreeWidget::itemSelectionChanged, this, [this]() {
         if (m_syncingUi || m_sceneTree->selectedItems().isEmpty()) {
             return;
@@ -384,14 +401,54 @@ void MainWindow::refreshModelTree()
         item->setText(1, QString::number(info.vertexCount));
         item->setText(2, QString::number(info.faceCount));
         item->setData(0, Qt::UserRole, info.id);
-        item->setCheckState(0, info.visible ? Qt::Checked : Qt::Unchecked);
         item->setToolTip(0, info.path);
+        m_sceneTree->setItemWidget(item, 3, createVisibilityButton(info.id, info.visible));
 
         if (info.id == selectedId) {
             m_sceneTree->setCurrentItem(item);
         }
     }
     m_syncingUi = false;
+}
+
+
+void MainWindow::refreshModelVisibilityRow(int modelId, bool visible)
+{
+    for (int row = 0; row < m_sceneTree->topLevelItemCount(); ++row) {
+        QTreeWidgetItem *item = m_sceneTree->topLevelItem(row);
+        if (item == nullptr || item->data(0, Qt::UserRole).toInt() != modelId) {
+            continue;
+        }
+
+        auto *button = qobject_cast<QToolButton *>(m_sceneTree->itemWidget(item, 3));
+        setVisibilityButtonState(button, visible);
+        return;
+    }
+}
+
+QToolButton *MainWindow::createVisibilityButton(int modelId, bool visible)
+{
+    auto *button = new QToolButton(m_sceneTree);
+    button->setAutoRaise(true);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setCursor(Qt::PointingHandCursor);
+    button->setFixedSize(24, 24);
+    button->setIconSize(QSize(16, 16));
+    setVisibilityButtonState(button, visible);
+
+    connect(button, &QToolButton::clicked, this, [this, modelId, button]() {
+        if (m_syncingUi) {
+            return;
+        }
+
+        const bool currentVisible = button->property("visibleState").toBool();
+        const bool nextVisible = !currentVisible;
+        if (m_viewport->setModelVisible(modelId, nextVisible)) {
+            refreshModelVisibilityRow(modelId, nextVisible);
+        }
+    });
+
+    return button;
 }
 
 void MainWindow::refreshTransformPanel()
