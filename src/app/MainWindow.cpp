@@ -324,44 +324,122 @@ void MainWindow::setupTheme()
 {
     setStyleSheet(R"(
 QMainWindow {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #111827, stop:1 #1f2937);
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #2b2b2b, stop:1 #353535);
 }
-QMenuBar, QMenu, QStatusBar {
-    background-color: #0f172a;
-    color: #e2e8f0;
+QMenuBar {
+    background-color: #303030;
+    color: #e2e2e2;
+    border-bottom: 1px solid #464646;
+}
+QMenuBar::item {
+    spacing: 4px;
+    padding: 6px 10px;
+    background: transparent;
+    border-radius: 4px;
+}
+QMenuBar::item:selected {
+    background: #3d4a58;
+    color: #ecf1f7;
+}
+QMenuBar::item:pressed {
+    background: #2f3944;
+}
+QMenu {
+    background-color: #353535;
+    color: #e3e3e3;
+    border: 1px solid #4a4a4a;
+    padding: 4px;
+}
+QMenu::item {
+    padding: 6px 20px 6px 10px;
+    border-radius: 4px;
+}
+QMenu::item:selected {
+    background: #3f4d5d;
+    color: #f1f5f9;
+}
+QMenu::item:pressed {
+    background: #2f3944;
+}
+QStatusBar {
+    background-color: #2f2f2f;
+    color: #d4d4d4;
+    border-top: 1px solid #454545;
 }
 QDockWidget {
-    color: #f8fafc;
+    color: #e0e0e0;
     font-weight: 600;
 }
 QDockWidget::title {
     text-align: left;
-    padding-left: 8px;
-    background: #1e293b;
-    border-bottom: 1px solid #334155;
+    padding: 6px 8px;
+    background: #333333;
+    color: #e1e1e1;
+    border-top: 1px solid #454545;
+    border-bottom: 1px solid #454545;
 }
 QTreeWidget, QTextEdit, QTabWidget::pane, QDoubleSpinBox {
-    background-color: #0b1220;
-    color: #e2e8f0;
-    border: 1px solid #334155;
-    border-radius: 6px;
+    background-color: #383838;
+    alternate-background-color: #3c3c3c;
+    color: #e4e4e4;
+    border: 1px solid #4c4c4c;
+    border-radius: 4px;
+    selection-background-color: #4c6077;
+    selection-color: #f3f6fb;
+}
+QTreeWidget::item {
+    padding: 3px 2px;
+}
+QTreeWidget::item:hover {
+    background-color: #434b56;
 }
 QTreeWidget::item:selected {
-    background-color: #2563eb;
+    background-color: #4c6077;
+}
+QTreeWidget::item:selected:active {
+    background-color: #546a84;
+}
+QTextEdit {
+    background-color: #323232;
+}
+QTabWidget::pane {
+    margin-top: -1px;
 }
 QTabBar::tab {
-    background: #1e293b;
-    color: #e2e8f0;
-    padding: 6px 12px;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    background: #323232;
+    color: #d5d5d5;
+    padding: 7px 13px;
+    border: 1px solid #4a4a4a;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    margin-right: 2px;
+}
+QTabBar::tab:hover {
+    background: #3a4552;
+    color: #e7ebf0;
 }
 QTabBar::tab:selected {
-    background: #2563eb;
+    background: #3f5166;
+    color: #f0f3f7;
+    border-color: #5a6470;
+}
+QTabBar::tab:pressed {
+    background: #334050;
+}
+QDoubleSpinBox {
+    padding-right: 18px;
 }
 QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
-    background: #1e293b;
+    background: #3a3a3a;
+    border-left: 1px solid #4f4f4f;
     width: 16px;
+}
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
+    background: #455264;
+}
+QDoubleSpinBox::up-button:pressed, QDoubleSpinBox::down-button:pressed {
+    background: #d08c54;
 }
 )");
 }

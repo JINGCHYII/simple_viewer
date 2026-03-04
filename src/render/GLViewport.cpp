@@ -345,7 +345,7 @@ void GLViewport::initializeGL()
     initializeOpenGLFunctions();
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_PROGRAM_POINT_SIZE);
-    glClearColor(0.05f, 0.08f, 0.12f, 1.0f);
+    glClearColor(0.18f, 0.18f, 0.18f, 1.0f);
 
     m_shader.load(this, ":/shaders/shaders/basic.vert", ":/shaders/shaders/blinn_phong.frag");
     uploadDefaultMesh();
