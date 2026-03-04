@@ -34,6 +34,7 @@ set(SIMPLE_VIEWER_HEADERS
     src/render/Mesh.h
     src/render/PointCloud.h
     src/io/ModelLoader.h
+    src/io/ModelData.h
     src/io/PLYLoader.h
     src/io/STLLoader.h
     src/camera/OrbitCamera.h
