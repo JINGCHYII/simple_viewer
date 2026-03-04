@@ -17,6 +17,9 @@ uniform float uSpecularStrength;
 uniform float uShininess;
 uniform int uUseVertexColor;
 uniform int uEnableSpecular;
+uniform int uPointColorMode;
+uniform vec3 uBoundsMin;
+uniform vec3 uBoundsMax;
 
 out vec4 FragColor;
 
@@ -35,6 +38,11 @@ void main()
     }
 
     vec3 baseColor = (uUseVertexColor != 0) ? fs_in.color : uMaterialColor;
+    if (uPointColorMode == 1) {
+        float height = (fs_in.worldPos.y - uBoundsMin.y) / max(uBoundsMax.y - uBoundsMin.y, 1e-5);
+        height = clamp(height, 0.0, 1.0);
+        baseColor = mix(vec3(0.2, 0.45, 0.95), vec3(0.95, 0.35, 0.2), height);
+    }
 
     vec3 ambient = uAmbientStrength * uAmbientColor * baseColor;
     vec3 diffuse = diff * uLightColor * baseColor;

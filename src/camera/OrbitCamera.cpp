@@ -109,20 +109,27 @@ QVector3D OrbitCamera::up() const
     return QVector3D::crossProduct(right(), forward()).normalized();
 }
 
-void OrbitCamera::setFromView(const QVector3D &pos, const QVector3D &fwd, const QVector3D &)
+void OrbitCamera::setFromView(const QVector3D &pos, const QVector3D &fwd, const QVector3D &up)
 {
-    m_distance = qBound(kMinDistance, (m_target - pos).length(), kMaxDistance);
-
-    const QVector3D dir = fwd.normalized();
-    m_yaw = qRadiansToDegrees(qAtan2(dir.z(), dir.x()));
-    m_pitch = qRadiansToDegrees(qAsin(dir.y()));
-    m_pitch = qBound(-kPitchLimit, m_pitch, kPitchLimit);
-
-    m_target = pos + dir * m_distance;
+    setTargetAndDistance(pos + fwd.normalized() * qBound(kMinDistance, (m_target - pos).length(), kMaxDistance),
+                         qBound(kMinDistance, (m_target - pos).length(), kMaxDistance),
+                         fwd,
+                         up);
 }
 
 QVector3D OrbitCamera::right() const
 {
     const QVector3D worldUp(0.0f, 1.0f, 0.0f);
     return QVector3D::crossProduct(forward(), worldUp).normalized();
+}
+
+void OrbitCamera::setTargetAndDistance(const QVector3D &target, float distance, const QVector3D &forward, const QVector3D &)
+{
+    m_target = target;
+    m_distance = qBound(kMinDistance, distance, kMaxDistance);
+
+    const QVector3D dir = forward.normalized();
+    m_yaw = qRadiansToDegrees(qAtan2(dir.z(), dir.x()));
+    m_pitch = qRadiansToDegrees(qAsin(dir.y()));
+    m_pitch = qBound(-kPitchLimit, m_pitch, kPitchLimit);
 }

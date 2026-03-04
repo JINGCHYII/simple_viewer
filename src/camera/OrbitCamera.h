@@ -24,6 +24,7 @@ public:
     QVector3D up() const override;
 
     void setFromView(const QVector3D &position, const QVector3D &forward, const QVector3D &up);
+    void setTargetAndDistance(const QVector3D &target, float distance, const QVector3D &forward, const QVector3D &up);
 
 private:
     QVector3D right() const;
