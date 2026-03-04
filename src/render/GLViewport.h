@@ -27,9 +27,7 @@ public:
 
     enum class RenderMode {
         Solid,
-        Wireframe,
         SolidWireOverlay,
-        PointCloud,
     };
 
     enum class PointColorMode {

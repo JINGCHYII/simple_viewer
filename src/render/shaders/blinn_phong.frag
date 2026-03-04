@@ -3,6 +3,8 @@
 in VS_OUT {
     vec3 worldPos;
     vec3 normal;
+    vec3 viewPos;
+    vec3 viewNormal;
     vec3 color;
 } fs_in;
 
@@ -20,6 +22,11 @@ uniform int uEnableSpecular;
 uniform int uPointColorMode;
 uniform vec3 uBoundsMin;
 uniform vec3 uBoundsMax;
+
+uniform int uShadingModel;
+uniform float uRimStrength;
+uniform float uFlatFactor;
+uniform float uGamma;
 
 out vec4 FragColor;
 
@@ -50,10 +57,25 @@ void main()
     vec3 diffuse = diff * uLightColor * baseColor;
     vec3 specular = uSpecularStrength * spec * uLightColor;
 
-    vec3 color = ambient + diffuse + specular;
+    vec3 color;
+    if (uShadingModel == 1) {
+        float nl = max(dot(n, lightDir), 0.0);
+        float quantized = floor(nl * 4.0) / 4.0;
+        float mixedDiffuse = mix(nl, quantized, clamp(uFlatFactor, 0.0, 1.0));
+
+        vec3 viewN = normalize(fs_in.viewNormal);
+        vec3 viewV = normalize(-fs_in.viewPos);
+        float rim = pow(clamp(1.0 - max(dot(viewN, viewV), 0.0), 0.0, 1.0), 1.5);
+
+        vec3 rimColor = baseColor * (0.25 + 0.75 * uLightColor);
+        color = ambient + mixedDiffuse * uLightColor * baseColor + specular + rim * uRimStrength * rimColor;
+    } else {
+        color = ambient + diffuse + specular;
+    }
+
     color = (color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14);
     color = clamp(color, 0.0, 1.0);
-    color = pow(color, vec3(1.0 / 2.2));
+    color = pow(color, vec3(1.0 / max(uGamma, 0.001)));
 
     FragColor = vec4(color, 1.0);
 }
