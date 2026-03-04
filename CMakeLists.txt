@@ -51,6 +51,10 @@ add_executable(simple_viewer
 
 target_include_directories(simple_viewer PRIVATE src)
 
+target_compile_definitions(simple_viewer PRIVATE
+    $<$<PLATFORM_ID:Windows>:NOMINMAX>
+)
+
 target_link_libraries(simple_viewer PRIVATE
     Qt5::Widgets
     Qt5::OpenGLWidgets
