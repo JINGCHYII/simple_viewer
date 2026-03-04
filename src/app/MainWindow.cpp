@@ -38,7 +38,7 @@ void setVisibilityButtonState(QToolButton *button, bool visible)
     }
     button->setProperty("visibleState", visible);
     button->setIcon(visibilityIcon(visible));
-    button->setToolTip(visible ? QObject::tr("隐藏模型") : QObject::tr("显示模型"));
+    button->setToolTip(visible ? QObject::tr("Hide model") : QObject::tr("Show model"));
 }
 
 } // namespace
@@ -99,7 +99,7 @@ void MainWindow::setupMenus()
                                                           tr("3D Files (*.obj *.fbx *.dae *.3ds *.glb *.gltf *.stl *.ply *.off *.x *.blend);;All Files (*)"));
         if (!path.isEmpty()) {
             if (!m_viewport->loadModel(path)) {
-                appendLog(tr("导入失败: %1").arg(path), true);
+                appendLog(tr("Import failed: %1").arg(path), true);
             }
         }
     });
@@ -220,7 +220,7 @@ void MainWindow::setupPanels()
     auto *sceneDock = new QDockWidget(tr("Scene Tree"), this);
     sceneDock->setObjectName("SceneDock");
     m_sceneTree = new QTreeWidget(sceneDock);
-    m_sceneTree->setHeaderLabels({tr("模型"), tr("顶点"), tr("面"), QStringLiteral(" ")});
+    m_sceneTree->setHeaderLabels({tr("Model"), tr("Vertices"), tr("Faces"), QStringLiteral(" ")});
     m_sceneTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_sceneTree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     m_sceneTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
@@ -244,7 +244,7 @@ void MainWindow::setupPanels()
             return;
         }
         QMenu menu(this);
-        QAction *deleteAction = menu.addAction(tr("删除模型"));
+        QAction *deleteAction = menu.addAction(tr("Delete model"));
         QAction *selected = menu.exec(m_sceneTree->viewport()->mapToGlobal(pos));
         if (selected == deleteAction) {
             const int modelId = item->data(0, Qt::UserRole).toInt();
@@ -317,7 +317,7 @@ void MainWindow::setupPanels()
     logDock->setWidget(m_logView);
     addDockWidget(Qt::BottomDockWidgetArea, logDock);
 
-    appendLog(tr("Viewer 已启动"));
+    appendLog(tr("Viewer started"));
 }
 
 void MainWindow::setupTheme()
