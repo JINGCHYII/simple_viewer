@@ -17,6 +17,11 @@
 #include "io/ModelData.h"
 #include "io/ModelLoader.h"
 
+namespace {
+constexpr float kGizmoPixelSize = 120.0f;
+constexpr float kGizmoLineWidth = 3.0f;
+}
+
 GLViewport::GLViewport(QWidget *parent)
     : QOpenGLWidget(parent)
 {
@@ -491,7 +496,9 @@ void GLViewport::paintGL()
     }
 
     if (const SceneModel *selected = findModel(m_selectedModelId)) {
+        glDisable(GL_DEPTH_TEST);
         drawGizmo(*selected, view, proj);
+        glEnable(GL_DEPTH_TEST);
     }
 
     m_shader.release(this);
@@ -595,7 +602,7 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
             const float aspect = height() > 0 ? static_cast<float>(width()) / static_cast<float>(height()) : 1.0f;
             const QMatrix4x4 viewProj = currentCamera()->projMatrix(aspect) * currentCamera()->viewMatrix();
             const QPointF centerScreen = projectToScreen(center, viewProj);
-            const QPointF axisScreen = projectToScreen(center + axisVector * worldPerPixel * 80.0f, viewProj);
+            const QPointF axisScreen = projectToScreen(center + axisVector * worldPerPixel * kGizmoPixelSize, viewProj);
             QVector2D axisDir(axisScreen - centerScreen);
             if (axisDir.lengthSquared() < 1e-4f) {
                 axisDir = QVector2D(1.0f, 0.0f);
@@ -695,6 +702,7 @@ QPointF GLViewport::projectToScreen(const QVector3D &worldPoint, const QMatrix4x
     return QPointF(sx, sy);
 }
 
+
 GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
 {
     if (m_selectedModelId < 0) {
@@ -707,7 +715,7 @@ GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
 
     const QVector3D center = selectedModelWorldCenter(*selected);
     const float worldPerPixel = worldUnitsPerPixelAt(center);
-    const float axisLen = worldPerPixel * 80.0f;
+    const float axisLen = worldPerPixel * kGizmoPixelSize;
 
     const float aspect = height() > 0 ? static_cast<float>(width()) / static_cast<float>(height()) : 1.0f;
     const QMatrix4x4 viewProj = currentCamera()->projMatrix(aspect) * currentCamera()->viewMatrix();
@@ -745,7 +753,7 @@ GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
 void GLViewport::drawGizmo(const SceneModel &model, const QMatrix4x4 &view, const QMatrix4x4 &proj)
 {
     const QVector3D center = selectedModelWorldCenter(model);
-    const float axisLen = worldUnitsPerPixelAt(center) * 80.0f;
+    const float axisLen = worldUnitsPerPixelAt(center) * kGizmoPixelSize;
     const float circleRadius = axisLen * 0.75f;
 
     const QVector3D colorX = (m_activeGizmoAxis == GizmoAxis::X || m_hoveredGizmoAxis == GizmoAxis::X) ? QVector3D(1.0f, 0.85f, 0.3f) : QVector3D(0.96f, 0.26f, 0.26f);
@@ -792,7 +800,9 @@ void GLViewport::drawGizmoLine(const QVector3D &start, const QVector3D &end, con
     m_shader.setInt(this, "uUseVertexColor", 1);
     m_shader.setInt(this, "uEnableSpecular", 0);
     m_shader.setInt(this, "uShadingModel", 0);
+    glLineWidth(kGizmoLineWidth);
     glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size()));
+    glLineWidth(1.0f);
 
     glBindVertexArray(0);
     glDeleteBuffers(1, &vbo);
@@ -842,7 +852,9 @@ void GLViewport::drawGizmoCircle(const QVector3D &center, const QVector3D &axis,
     m_shader.setInt(this, "uUseVertexColor", 1);
     m_shader.setInt(this, "uEnableSpecular", 0);
     m_shader.setInt(this, "uShadingModel", 0);
+    glLineWidth(kGizmoLineWidth);
     glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size()));
+    glLineWidth(1.0f);
 
     glBindVertexArray(0);
     glDeleteBuffers(1, &vbo);
