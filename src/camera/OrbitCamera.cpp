@@ -1,5 +1,6 @@
 #include "camera/OrbitCamera.h"
 
+#include <cmath>
 #include <QtMath>
 
 namespace
@@ -92,9 +93,9 @@ QVector3D OrbitCamera::position() const
     const float pitchRad = qDegreesToRadians(m_pitch);
 
     QVector3D offset;
-    offset.setX(qCos(yawRad) * qCos(pitchRad));
-    offset.setY(qSin(pitchRad));
-    offset.setZ(qSin(yawRad) * qCos(pitchRad));
+    offset.setX(std::cos(yawRad) * std::cos(pitchRad));
+    offset.setY(std::sin(pitchRad));
+    offset.setZ(std::sin(yawRad) * std::cos(pitchRad));
 
     return m_target - offset.normalized() * m_distance;
 }

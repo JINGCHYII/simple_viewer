@@ -1,6 +1,7 @@
 #include "camera/FlyCamera.h"
 
 #include <QKeyEvent>
+#include <cmath>
 #include <QtMath>
 
 namespace
@@ -54,9 +55,9 @@ void FlyCamera::handleMouseMove(const QPoint &pos)
     const float yawRad = qDegreesToRadians(m_yaw);
     const float pitchRad = qDegreesToRadians(m_pitch);
 
-    front.setX(qCos(yawRad) * qCos(pitchRad));
-    front.setY(qSin(pitchRad));
-    front.setZ(qSin(yawRad) * qCos(pitchRad));
+    front.setX(std::cos(yawRad) * std::cos(pitchRad));
+    front.setY(std::sin(pitchRad));
+    front.setZ(std::sin(yawRad) * std::cos(pitchRad));
     m_front = front.normalized();
 
     const QVector3D worldUp(0.0f, 1.0f, 0.0f);

@@ -172,10 +172,10 @@ void GLViewport::frameAll()
     const QVector3D offset(1.0f, 0.6f, 1.0f);
     const QVector3D viewDir = offset.normalized();
 
-    const float orbitDistance = qMax(0.2f, m_bboxRadius / qSin(qDegreesToRadians(22.5f)));
+    const float orbitDistance = std::max(0.2f, m_bboxRadius / std::sin(qDegreesToRadians(22.5f)));
     m_orbitCamera.setTargetAndDistance(m_bboxCenter, orbitDistance, viewDir, QVector3D(0.0f, 1.0f, 0.0f));
 
-    const float flyDistance = qMax(0.2f, m_bboxRadius / qSin(qDegreesToRadians(30.0f)));
+    const float flyDistance = std::max(0.2f, m_bboxRadius / std::sin(qDegreesToRadians(30.0f)));
     m_flyCamera.setFromView(m_bboxCenter - viewDir * flyDistance, viewDir, QVector3D(0.0f, 1.0f, 0.0f));
     update();
 }
@@ -252,12 +252,12 @@ bool GLViewport::loadModel(const QString &path)
     model.bboxMax = model.bboxMin;
     for (const Vertex &vertex : vertices) {
         const QVector3D point(vertex.pos.x, vertex.pos.y, vertex.pos.z);
-        model.bboxMin.setX(qMin(model.bboxMin.x(), point.x()));
-        model.bboxMin.setY(qMin(model.bboxMin.y(), point.y()));
-        model.bboxMin.setZ(qMin(model.bboxMin.z(), point.z()));
-        model.bboxMax.setX(qMax(model.bboxMax.x(), point.x()));
-        model.bboxMax.setY(qMax(model.bboxMax.y(), point.y()));
-        model.bboxMax.setZ(qMax(model.bboxMax.z(), point.z()));
+        model.bboxMin.setX(std::min(model.bboxMin.x(), point.x()));
+        model.bboxMin.setY(std::min(model.bboxMin.y(), point.y()));
+        model.bboxMin.setZ(std::min(model.bboxMin.z(), point.z()));
+        model.bboxMax.setX(std::max(model.bboxMax.x(), point.x()));
+        model.bboxMax.setY(std::max(model.bboxMax.y(), point.y()));
+        model.bboxMax.setZ(std::max(model.bboxMax.z(), point.z()));
     }
 
     model.vertexCount = static_cast<int>(vertices.size());
@@ -374,7 +374,7 @@ bool GLViewport::setModelTransform(int modelId, const QVector3D &translation, co
 
     model->translation = translation;
     model->rotationEuler = rotationEuler;
-    model->scale = QVector3D(qMax(0.001f, scale.x()), qMax(0.001f, scale.y()), qMax(0.001f, scale.z()));
+    model->scale = QVector3D(std::max(0.001f, scale.x()), std::max(0.001f, scale.y()), std::max(0.001f, scale.z()));
     recomputeSceneBounds();
     frameAll();
     emit modelListChanged();
@@ -414,7 +414,7 @@ void GLViewport::paintGL()
     const QMatrix4x4 proj = currentCamera()->projMatrix(aspect);
 
     const QVector3D viewPos = currentCamera()->position();
-    const QVector3D lightPos = viewPos + QVector3D(0.8f, 1.1f, 0.6f).normalized() * qMax(2.0f, m_bboxRadius * 2.8f);
+    const QVector3D lightPos = viewPos + QVector3D(0.8f, 1.1f, 0.6f).normalized() * std::max(2.0f, m_bboxRadius * 2.8f);
 
     m_shader.bind(this);
     m_shader.setMat4(this, "uView", view);
@@ -598,7 +598,7 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
         m_hoveredGizmoAxis = pickGizmoAxis(event->pos());
     }
 
-    const float dpiScale = qMax(1.0f, static_cast<float>(devicePixelRatioF()));
+    const float dpiScale = std::max(1.0f, static_cast<float>(devicePixelRatioF()));
     const float dragThresholdPx = kGizmoDragStartThresholdPx * dpiScale;
 
     if (m_pressedGizmoAxis != GizmoAxis::None && !m_gizmoDragging) {
@@ -649,13 +649,13 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
                     rotation.setZ(m_gizmoStartRotation.z() + rotateDelta);
                 }
             } else if (m_gizmoMode == GizmoMode::Scale) {
-                const float scaleFactor = qMax(0.01f, 1.0f + signedPixels * 0.01f);
+                const float scaleFactor = std::max(0.01f, 1.0f + signedPixels * 0.01f);
                 if (m_activeGizmoAxis == GizmoAxis::X) {
-                    scale.setX(qMax(0.001f, m_gizmoStartScale.x() * scaleFactor));
+                    scale.setX(std::max(0.001f, m_gizmoStartScale.x() * scaleFactor));
                 } else if (m_activeGizmoAxis == GizmoAxis::Y) {
-                    scale.setY(qMax(0.001f, m_gizmoStartScale.y() * scaleFactor));
+                    scale.setY(std::max(0.001f, m_gizmoStartScale.y() * scaleFactor));
                 } else if (m_activeGizmoAxis == GizmoAxis::Z) {
-                    scale.setZ(qMax(0.001f, m_gizmoStartScale.z() * scaleFactor));
+                    scale.setZ(std::max(0.001f, m_gizmoStartScale.z() * scaleFactor));
                 }
             }
 
@@ -706,11 +706,11 @@ QVector3D GLViewport::selectedModelWorldCenter(const SceneModel &model) const
 
 float GLViewport::worldUnitsPerPixelAt(const QVector3D &worldPoint) const
 {
-    const float distance = qMax(0.1f, (currentCamera()->position() - worldPoint).length());
+    const float distance = std::max(0.1f, (currentCamera()->position() - worldPoint).length());
     const float aspect = height() > 0 ? static_cast<float>(width()) / static_cast<float>(height()) : 1.0f;
     const QMatrix4x4 proj = currentCamera()->projMatrix(aspect);
-    const float projY = qMax(0.0001f, std::abs(proj(1, 1)));
-    return (2.0f * distance) / (qMax(1, height()) * projY);
+    const float projY = std::max(0.0001f, std::abs(proj(1, 1)));
+    return (2.0f * distance) / (std::max(1, height()) * projY);
 }
 
 QPointF GLViewport::projectToScreen(const QVector3D &worldPoint, const QMatrix4x4 &viewProj) const
@@ -776,7 +776,7 @@ GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
     const QPointF centerPt = projectToScreen(center, viewProj);
     const std::array<GizmoAxis, 3> picks = {GizmoAxis::X, GizmoAxis::Y, GizmoAxis::Z};
 
-    const float dpiScale = qMax(1.0f, static_cast<float>(devicePixelRatioF()));
+    const float dpiScale = std::max(1.0f, static_cast<float>(devicePixelRatioF()));
 
     const auto pointToSegmentDistance = [](const QPointF &point, const QPointF &a, const QPointF &b) {
         const QVector2D segment(b - a);
@@ -806,10 +806,10 @@ GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
             QPointF prevPoint;
             for (int i = 0; i <= segments; ++i) {
                 const float angle = (static_cast<float>(i) / static_cast<float>(segments)) * 2.0f * 3.14159265f;
-                const QVector3D ringPoint = center + (u * qCos(angle) + v * qSin(angle)) * (axisLen * 0.75f);
+                const QVector3D ringPoint = center + (u * std::cos(angle) + v * std::sin(angle)) * (axisLen * 0.75f);
                 const QPointF currPoint = projectToScreen(ringPoint, viewProj);
                 if (i > 0) {
-                    ringDist = qMin(ringDist, pointToSegmentDistance(QPointF(screenPos), prevPoint, currPoint));
+                    ringDist = std::min(ringDist, pointToSegmentDistance(QPointF(screenPos), prevPoint, currPoint));
                 }
                 prevPoint = currPoint;
             }
@@ -922,8 +922,8 @@ void GLViewport::drawGizmoCircle(const QVector3D &center, const QVector3D &axis,
     for (int i = 0; i < segments; ++i) {
         const float a0 = (static_cast<float>(i) / segments) * 2.0f * 3.14159265f;
         const float a1 = (static_cast<float>(i + 1) / segments) * 2.0f * 3.14159265f;
-        const QVector3D p0 = center + (u * qCos(a0) + v * qSin(a0)) * radius;
-        const QVector3D p1 = center + (u * qCos(a1) + v * qSin(a1)) * radius;
+        const QVector3D p0 = center + (u * std::cos(a0) + v * std::sin(a0)) * radius;
+        const QVector3D p1 = center + (u * std::cos(a1) + v * std::sin(a1)) * radius;
         vertices.push_back({{p0.x(), p0.y(), p0.z()}, {axis.x(), axis.y(), axis.z()}, {color.x(), color.y(), color.z()}});
         vertices.push_back({{p1.x(), p1.y(), p1.z()}, {axis.x(), axis.y(), axis.z()}, {color.x(), color.y(), color.z()}});
     }
@@ -1050,12 +1050,12 @@ void GLViewport::recomputeSceneBounds()
                         sceneMax = world;
                         initialized = true;
                     } else {
-                        sceneMin.setX(qMin(sceneMin.x(), world.x()));
-                        sceneMin.setY(qMin(sceneMin.y(), world.y()));
-                        sceneMin.setZ(qMin(sceneMin.z(), world.z()));
-                        sceneMax.setX(qMax(sceneMax.x(), world.x()));
-                        sceneMax.setY(qMax(sceneMax.y(), world.y()));
-                        sceneMax.setZ(qMax(sceneMax.z(), world.z()));
+                        sceneMin.setX(std::min(sceneMin.x(), world.x()));
+                        sceneMin.setY(std::min(sceneMin.y(), world.y()));
+                        sceneMin.setZ(std::min(sceneMin.z(), world.z()));
+                        sceneMax.setX(std::max(sceneMax.x(), world.x()));
+                        sceneMax.setY(std::max(sceneMax.y(), world.y()));
+                        sceneMax.setZ(std::max(sceneMax.z(), world.z()));
                     }
                 }
             }
@@ -1071,7 +1071,7 @@ void GLViewport::recomputeSceneBounds()
     }
 
     m_bboxCenter = (m_bboxMin + m_bboxMax) * 0.5f;
-    m_bboxRadius = qMax(0.001f, (m_bboxMax - m_bboxCenter).length());
+    m_bboxRadius = std::max(0.001f, (m_bboxMax - m_bboxCenter).length());
 }
 
 QMatrix4x4 GLViewport::modelMatrix(const SceneModel &model) const
