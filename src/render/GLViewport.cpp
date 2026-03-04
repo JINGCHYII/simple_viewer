@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <vector>
 
 #include <QFileInfo>
@@ -20,6 +21,11 @@
 namespace {
 constexpr float kGizmoPixelSize = 120.0f;
 constexpr float kGizmoLineWidth = 3.0f;
+constexpr float kGizmoHoverLineWidth = 5.0f;
+constexpr float kGizmoHoverBandLineWidth = 9.0f;
+constexpr float kGizmoPickTolerancePx = 10.0f;
+constexpr float kGizmoRotatePickBandWidthPx = 12.0f;
+constexpr float kGizmoDragStartThresholdPx = 4.0f;
 }
 
 GLViewport::GLViewport(QWidget *parent)
@@ -120,6 +126,7 @@ void GLViewport::setGizmoMode(GizmoMode mode)
 
     if (mode == GizmoMode::None) {
         m_hoveredGizmoAxis = GizmoAxis::None;
+        m_pressedGizmoAxis = GizmoAxis::None;
         m_activeGizmoAxis = GizmoAxis::None;
         m_gizmoDragging = false;
     }
@@ -576,13 +583,15 @@ void GLViewport::wheelEvent(QWheelEvent *event)
 void GLViewport::mousePressEvent(QMouseEvent *event)
 {
     m_lastMousePos = event->pos();
+    m_pressedGizmoAxis = GizmoAxis::None;
 
     if (event->button() == Qt::LeftButton && m_selectedModelId >= 0) {
         m_hoveredGizmoAxis = pickGizmoAxis(event->pos());
         if (m_hoveredGizmoAxis != GizmoAxis::None) {
             if (SceneModel *selected = findModel(m_selectedModelId)) {
-                m_gizmoDragging = true;
-                m_activeGizmoAxis = m_hoveredGizmoAxis;
+                m_gizmoDragging = false;
+                m_activeGizmoAxis = GizmoAxis::None;
+                m_pressedGizmoAxis = m_hoveredGizmoAxis;
                 m_gizmoDragStartScreen = event->pos();
                 m_gizmoStartTranslation = selected->translation;
                 m_gizmoStartRotation = selected->rotationEuler;
@@ -599,8 +608,22 @@ void GLViewport::mousePressEvent(QMouseEvent *event)
 
 void GLViewport::mouseMoveEvent(QMouseEvent *event)
 {
-    if (m_selectedModelId >= 0) {
+    if (m_selectedModelId >= 0 && !m_gizmoDragging) {
         m_hoveredGizmoAxis = pickGizmoAxis(event->pos());
+    }
+
+    const float dpiScale = qMax(1.0f, static_cast<float>(devicePixelRatioF()));
+    const float dragThresholdPx = kGizmoDragStartThresholdPx * dpiScale;
+
+    if (m_pressedGizmoAxis != GizmoAxis::None && !m_gizmoDragging) {
+        const QVector2D dragDelta(event->pos() - m_gizmoDragStartScreen);
+        if (dragDelta.length() >= dragThresholdPx) {
+            m_gizmoDragging = true;
+            m_activeGizmoAxis = m_pressedGizmoAxis;
+        } else {
+            event->accept();
+            return;
+        }
     }
 
     if (m_gizmoDragging && m_activeGizmoAxis != GizmoAxis::None) {
@@ -666,11 +689,12 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
 
 void GLViewport::mouseReleaseEvent(QMouseEvent *event)
 {
-    const bool wasDragging = m_gizmoDragging;
+    const bool pressedOnGizmo = m_pressedGizmoAxis != GizmoAxis::None;
     m_gizmoDragging = false;
+    m_pressedGizmoAxis = GizmoAxis::None;
     m_activeGizmoAxis = GizmoAxis::None;
 
-    if (!wasDragging) {
+    if (!pressedOnGizmo) {
         currentCamera()->handleMouseRelease(event->button(), event->pos());
     }
     event->accept();
@@ -766,23 +790,56 @@ GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
     const QPointF centerPt = projectToScreen(center, viewProj);
     const std::array<GizmoAxis, 3> picks = {GizmoAxis::X, GizmoAxis::Y, GizmoAxis::Z};
 
+    const float dpiScale = qMax(1.0f, static_cast<float>(devicePixelRatioF()));
+
+    const auto pointToSegmentDistance = [](const QPointF &point, const QPointF &a, const QPointF &b) {
+        const QVector2D segment(b - a);
+        const float segLenSq = segment.lengthSquared();
+        if (segLenSq < 1e-6f) {
+            return QVector2D(point - a).length();
+        }
+        const float t = qBound(0.0f, QVector2D::dotProduct(QVector2D(point - a), segment) / segLenSq, 1.0f);
+        const QPointF nearest = a + (b - a) * t;
+        return QVector2D(point - nearest).length();
+    };
+
     GizmoAxis bestAxis = GizmoAxis::None;
-    float bestDist = 10.0f;
+    float bestDist = std::numeric_limits<float>::max();
     for (GizmoAxis axis : picks) {
         const QVector3D axisDir = gizmoAxisVector(axis, *selected);
-        const QPointF endPt = projectToScreen(center + axisDir * axisLen, viewProj);
-        const QVector2D seg(endPt - centerPt);
-        const float segLenSq = seg.lengthSquared();
-        if (segLenSq < 1e-5f) {
-            continue;
-        }
-        const QVector2D fromStart(QPointF(screenPos) - centerPt);
-        const float t = qBound(0.0f, QVector2D::dotProduct(fromStart, seg) / segLenSq, 1.0f);
-        const QPointF nearest = centerPt + (endPt - centerPt) * t;
-        const float dist = QVector2D(QPointF(screenPos) - nearest).length();
-        if (dist < bestDist) {
-            bestDist = dist;
-            bestAxis = axis;
+        if (m_gizmoMode == GizmoMode::Rotate) {
+            constexpr int segments = 72;
+            QVector3D u = QVector3D::crossProduct(axisDir, QVector3D(0.0f, 1.0f, 0.0f));
+            if (u.lengthSquared() < 1e-4f) {
+                u = QVector3D::crossProduct(axisDir, QVector3D(1.0f, 0.0f, 0.0f));
+            }
+            u.normalize();
+            const QVector3D v = QVector3D::crossProduct(axisDir, u).normalized();
+
+            float ringDist = std::numeric_limits<float>::max();
+            QPointF prevPoint;
+            for (int i = 0; i <= segments; ++i) {
+                const float angle = (static_cast<float>(i) / static_cast<float>(segments)) * 2.0f * 3.14159265f;
+                const QVector3D ringPoint = center + (u * qCos(angle) + v * qSin(angle)) * (axisLen * 0.75f);
+                const QPointF currPoint = projectToScreen(ringPoint, viewProj);
+                if (i > 0) {
+                    ringDist = qMin(ringDist, pointToSegmentDistance(QPointF(screenPos), prevPoint, currPoint));
+                }
+                prevPoint = currPoint;
+            }
+
+            const float ringHalfBand = 0.5f * kGizmoRotatePickBandWidthPx * dpiScale;
+            if (ringDist <= ringHalfBand && ringDist < bestDist) {
+                bestDist = ringDist;
+                bestAxis = axis;
+            }
+        } else {
+            const QPointF endPt = projectToScreen(center + axisDir * axisLen, viewProj);
+            const float dist = pointToSegmentDistance(QPointF(screenPos), centerPt, endPt);
+            if (dist <= kGizmoPickTolerancePx * dpiScale && dist < bestDist) {
+                bestDist = dist;
+                bestAxis = axis;
+            }
         }
     }
     return bestAxis;
@@ -807,9 +864,17 @@ void GLViewport::drawGizmo(const SceneModel &model, const QMatrix4x4 &view, cons
     const QVector3D axisZ = gizmoAxisVector(GizmoAxis::Z, model);
 
     if (m_gizmoMode == GizmoMode::Rotate) {
-        drawGizmoCircle(center, axisX, circleRadius, colorX, view, proj);
-        drawGizmoCircle(center, axisY, circleRadius, colorY, view, proj);
-        drawGizmoCircle(center, axisZ, circleRadius, colorZ, view, proj);
+        if (m_hoveredGizmoAxis != GizmoAxis::None) {
+            const QVector3D hoverAxis = gizmoAxisVector(m_hoveredGizmoAxis, model);
+            const QVector3D hoverBandColor(0.95f, 0.85f, 0.35f);
+            drawGizmoCircle(center, hoverAxis, circleRadius, hoverBandColor, view, proj, kGizmoHoverBandLineWidth);
+        }
+        drawGizmoCircle(center, axisX, circleRadius, colorX, view, proj,
+                        m_hoveredGizmoAxis == GizmoAxis::X || m_activeGizmoAxis == GizmoAxis::X ? kGizmoHoverLineWidth : kGizmoLineWidth);
+        drawGizmoCircle(center, axisY, circleRadius, colorY, view, proj,
+                        m_hoveredGizmoAxis == GizmoAxis::Y || m_activeGizmoAxis == GizmoAxis::Y ? kGizmoHoverLineWidth : kGizmoLineWidth);
+        drawGizmoCircle(center, axisZ, circleRadius, colorZ, view, proj,
+                        m_hoveredGizmoAxis == GizmoAxis::Z || m_activeGizmoAxis == GizmoAxis::Z ? kGizmoHoverLineWidth : kGizmoLineWidth);
     } else {
         drawGizmoLine(center, center + axisX * axisLen, colorX, view, proj);
         drawGizmoLine(center, center + axisY * axisLen, colorY, view, proj);
@@ -856,7 +921,7 @@ void GLViewport::drawGizmoLine(const QVector3D &start, const QVector3D &end, con
 }
 
 void GLViewport::drawGizmoCircle(const QVector3D &center, const QVector3D &axis, float radius, const QVector3D &color,
-                                 const QMatrix4x4 &view, const QMatrix4x4 &proj)
+                                 const QMatrix4x4 &view, const QMatrix4x4 &proj, float lineWidth)
 {
     constexpr int segments = 48;
     QVector3D u = QVector3D::crossProduct(axis, QVector3D(0.0f, 1.0f, 0.0f));
@@ -898,7 +963,7 @@ void GLViewport::drawGizmoCircle(const QVector3D &center, const QVector3D &axis,
     m_shader.setInt(this, "uUseVertexColor", 1);
     m_shader.setInt(this, "uEnableSpecular", 0);
     m_shader.setInt(this, "uShadingModel", 0);
-    glLineWidth(kGizmoLineWidth);
+    glLineWidth(lineWidth);
     glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size()));
     glLineWidth(1.0f);
 
