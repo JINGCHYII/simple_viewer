@@ -36,6 +36,7 @@ public:
     };
 
     enum class GizmoMode {
+        None,
         Translate,
         Rotate,
         Scale,

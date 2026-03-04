@@ -68,6 +68,7 @@ MainWindow::MainWindow(QWidget *parent)
         refreshStatusLabels();
     });
     connect(m_viewport, &GLViewport::gizmoModeChanged, this, [this](GLViewport::GizmoMode mode) {
+        m_gizmoHideAction->setChecked(mode == GLViewport::GizmoMode::None);
         m_gizmoTranslateAction->setChecked(mode == GLViewport::GizmoMode::Translate);
         m_gizmoRotateAction->setChecked(mode == GLViewport::GizmoMode::Rotate);
         m_gizmoScaleAction->setChecked(mode == GLViewport::GizmoMode::Scale);
@@ -159,6 +160,12 @@ void MainWindow::setupMenus()
     auto *gizmoMenu = viewMenu->addMenu(tr("Gizmo Mode"));
     auto *gizmoGroup = new QActionGroup(this);
 
+    m_gizmoHideAction = gizmoMenu->addAction(tr("Hide (Q)"));
+    m_gizmoHideAction->setCheckable(true);
+    m_gizmoHideAction->setShortcut(QKeySequence(Qt::Key_Q));
+    m_gizmoHideAction->setShortcutContext(Qt::WindowShortcut);
+    gizmoGroup->addAction(m_gizmoHideAction);
+
     m_gizmoTranslateAction = gizmoMenu->addAction(tr("Translate (W)"));
     m_gizmoTranslateAction->setCheckable(true);
     m_gizmoTranslateAction->setShortcut(QKeySequence(Qt::Key_W));
@@ -178,6 +185,9 @@ void MainWindow::setupMenus()
     m_gizmoScaleAction->setShortcutContext(Qt::WindowShortcut);
     gizmoGroup->addAction(m_gizmoScaleAction);
 
+    connect(m_gizmoHideAction, &QAction::triggered, this, [this]() {
+        m_viewport->setGizmoMode(GLViewport::GizmoMode::None);
+    });
     connect(m_gizmoTranslateAction, &QAction::triggered, this, [this]() {
         m_viewport->setGizmoMode(GLViewport::GizmoMode::Translate);
     });
