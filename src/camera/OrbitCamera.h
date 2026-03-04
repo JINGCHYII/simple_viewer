@@ -2,6 +2,8 @@
 
 #include "camera/Camera.h"
 
+#include <QQuaternion>
+
 class OrbitCamera : public Camera
 {
 public:
@@ -31,8 +33,7 @@ private:
 
     QVector3D m_target{0.0f, 0.0f, 0.0f};
     float m_distance{5.0f};
-    float m_yaw{-90.0f};
-    float m_pitch{20.0f};
+    QQuaternion m_orientation;
 
     QPoint m_lastMousePos;
     bool m_rotating{false};

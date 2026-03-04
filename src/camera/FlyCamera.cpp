@@ -12,6 +12,8 @@ constexpr float kFar = 3000.0f;
 constexpr float kLookSensitivity = 0.18f;
 constexpr float kPitchLimit = 89.0f;
 constexpr float kBoostMultiplier = 3.0f;
+constexpr float kAcceleration = 18.0f;
+constexpr float kDamping = 14.0f;
 }
 
 FlyCamera::FlyCamera() = default;
@@ -90,29 +92,45 @@ void FlyCamera::handleKeyRelease(int key)
 
 void FlyCamera::update(float deltaSeconds)
 {
-    float velocity = m_speed * deltaSeconds;
-    if (m_pressedKeys.contains(Qt::Key_Shift)) {
-        velocity *= kBoostMultiplier;
-    }
-
+    QVector3D desiredDirection(0.0f, 0.0f, 0.0f);
     if (m_pressedKeys.contains(Qt::Key_W)) {
-        m_position += m_front * velocity;
+        desiredDirection += m_front;
     }
     if (m_pressedKeys.contains(Qt::Key_S)) {
-        m_position -= m_front * velocity;
+        desiredDirection -= m_front;
     }
     if (m_pressedKeys.contains(Qt::Key_A)) {
-        m_position -= right() * velocity;
+        desiredDirection -= right();
     }
     if (m_pressedKeys.contains(Qt::Key_D)) {
-        m_position += right() * velocity;
+        desiredDirection += right();
     }
     if (m_pressedKeys.contains(Qt::Key_Q)) {
-        m_position -= m_up * velocity;
+        desiredDirection -= m_up;
     }
     if (m_pressedKeys.contains(Qt::Key_E)) {
-        m_position += m_up * velocity;
+        desiredDirection += m_up;
     }
+
+    float maxSpeed = m_speed;
+    if (m_pressedKeys.contains(Qt::Key_Shift)) {
+        maxSpeed *= kBoostMultiplier;
+    }
+
+    QVector3D desiredVelocity(0.0f, 0.0f, 0.0f);
+    if (!qFuzzyIsNull(desiredDirection.lengthSquared())) {
+        desiredVelocity = desiredDirection.normalized() * maxSpeed;
+    }
+
+    const float accelBlend = 1.0f - std::exp(-kAcceleration * deltaSeconds);
+    m_velocity += (desiredVelocity - m_velocity) * accelBlend;
+
+    if (qFuzzyIsNull(desiredDirection.lengthSquared())) {
+        const float dampingBlend = std::exp(-kDamping * deltaSeconds);
+        m_velocity *= dampingBlend;
+    }
+
+    m_position += m_velocity * deltaSeconds;
 }
 
 QVector3D FlyCamera::position() const

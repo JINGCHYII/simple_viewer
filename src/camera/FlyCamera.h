@@ -34,6 +34,7 @@ private:
     float m_yaw{-90.0f};
     float m_pitch{0.0f};
     float m_speed{4.0f};
+    QVector3D m_velocity{0.0f, 0.0f, 0.0f};
 
     QPoint m_lastMousePos;
     bool m_rotating{false};
