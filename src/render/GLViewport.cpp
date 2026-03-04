@@ -1,12 +1,17 @@
 #include "render/GLViewport.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <vector>
 
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QMatrix4x4>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QVector2D>
 #include <QtMath>
 
 #include "io/ModelData.h"
@@ -100,6 +105,21 @@ void GLViewport::setPointColorMode(PointColorMode mode)
 GLViewport::PointColorMode GLViewport::pointColorMode() const
 {
     return m_pointColorMode;
+}
+
+void GLViewport::setGizmoMode(GizmoMode mode)
+{
+    if (m_gizmoMode == mode) {
+        return;
+    }
+    m_gizmoMode = mode;
+    emit gizmoModeChanged(mode);
+    update();
+}
+
+GLViewport::GizmoMode GLViewport::gizmoMode() const
+{
+    return m_gizmoMode;
 }
 
 void GLViewport::setAutoFitEnabled(bool enabled)
@@ -262,6 +282,10 @@ bool GLViewport::setModelVisible(int modelId, bool visible)
     if (m_autoFitEnabled) {
         frameAll();
     }
+    emit modelListChanged();
+    if (m_selectedModelId == modelId) {
+        emit selectedModelChanged(modelId);
+    }
     update();
     return true;
 }
@@ -331,6 +355,10 @@ bool GLViewport::setModelTransform(int modelId, const QVector3D &translation, co
     recomputeSceneBounds();
     if (m_autoFitEnabled) {
         frameAll();
+    }
+    emit modelListChanged();
+    if (m_selectedModelId == modelId) {
+        emit selectedModelChanged(modelId);
     }
     update();
     return true;
@@ -462,6 +490,10 @@ void GLViewport::paintGL()
         }
     }
 
+    if (const SceneModel *selected = findModel(m_selectedModelId)) {
+        drawGizmo(*selected, view, proj);
+    }
+
     m_shader.release(this);
 }
 
@@ -472,7 +504,7 @@ void GLViewport::keyPressEvent(QKeyEvent *event)
         frameAll();
         event->accept();
         return;
-    case Qt::Key_R:
+    case Qt::Key_0:
         resetCamera();
         event->accept();
         return;
@@ -512,12 +544,100 @@ void GLViewport::wheelEvent(QWheelEvent *event)
 void GLViewport::mousePressEvent(QMouseEvent *event)
 {
     m_lastMousePos = event->pos();
+
+    if (event->button() == Qt::LeftButton && m_selectedModelId >= 0) {
+        m_hoveredGizmoAxis = pickGizmoAxis(event->pos());
+        if (m_hoveredGizmoAxis != GizmoAxis::None) {
+            if (SceneModel *selected = findModel(m_selectedModelId)) {
+                m_gizmoDragging = true;
+                m_activeGizmoAxis = m_hoveredGizmoAxis;
+                m_gizmoDragStartScreen = event->pos();
+                m_gizmoStartTranslation = selected->translation;
+                m_gizmoStartRotation = selected->rotationEuler;
+                m_gizmoStartScale = selected->scale;
+                event->accept();
+                return;
+            }
+        }
+    }
+
     currentCamera()->handleMousePress(event->button(), event->pos());
     event->accept();
 }
 
 void GLViewport::mouseMoveEvent(QMouseEvent *event)
 {
+    if (m_selectedModelId >= 0) {
+        m_hoveredGizmoAxis = pickGizmoAxis(event->pos());
+    }
+
+    if (m_gizmoDragging && m_activeGizmoAxis != GizmoAxis::None) {
+        SceneModel *selected = findModel(m_selectedModelId);
+        if (selected != nullptr) {
+            const QVector3D center = selectedModelWorldCenter(*selected);
+            const float worldPerPixel = worldUnitsPerPixelAt(center);
+            const QPoint delta = event->pos() - m_gizmoDragStartScreen;
+
+            const QVector3D axisVector = [this]() {
+                switch (m_activeGizmoAxis) {
+                case GizmoAxis::X:
+                    return QVector3D(1.0f, 0.0f, 0.0f);
+                case GizmoAxis::Y:
+                    return QVector3D(0.0f, 1.0f, 0.0f);
+                case GizmoAxis::Z:
+                    return QVector3D(0.0f, 0.0f, 1.0f);
+                case GizmoAxis::None:
+                default:
+                    return QVector3D(0.0f, 0.0f, 0.0f);
+                }
+            }();
+
+            const float aspect = height() > 0 ? static_cast<float>(width()) / static_cast<float>(height()) : 1.0f;
+            const QMatrix4x4 viewProj = currentCamera()->projMatrix(aspect) * currentCamera()->viewMatrix();
+            const QPointF centerScreen = projectToScreen(center, viewProj);
+            const QPointF axisScreen = projectToScreen(center + axisVector * worldPerPixel * 80.0f, viewProj);
+            QVector2D axisDir(axisScreen - centerScreen);
+            if (axisDir.lengthSquared() < 1e-4f) {
+                axisDir = QVector2D(1.0f, 0.0f);
+            } else {
+                axisDir.normalize();
+            }
+            const float signedPixels = QVector2D::dotProduct(QVector2D(delta), axisDir);
+
+            QVector3D translation = m_gizmoStartTranslation;
+            QVector3D rotation = m_gizmoStartRotation;
+            QVector3D scale = m_gizmoStartScale;
+
+            if (m_gizmoMode == GizmoMode::Translate) {
+                translation += axisVector * (signedPixels * worldPerPixel);
+            } else if (m_gizmoMode == GizmoMode::Rotate) {
+                const float rotateDelta = signedPixels * 0.35f;
+                if (m_activeGizmoAxis == GizmoAxis::X) {
+                    rotation.setX(m_gizmoStartRotation.x() + rotateDelta);
+                } else if (m_activeGizmoAxis == GizmoAxis::Y) {
+                    rotation.setY(m_gizmoStartRotation.y() + rotateDelta);
+                } else if (m_activeGizmoAxis == GizmoAxis::Z) {
+                    rotation.setZ(m_gizmoStartRotation.z() + rotateDelta);
+                }
+            } else {
+                const float scaleFactor = qMax(0.01f, 1.0f + signedPixels * 0.01f);
+                if (m_activeGizmoAxis == GizmoAxis::X) {
+                    scale.setX(qMax(0.001f, m_gizmoStartScale.x() * scaleFactor));
+                } else if (m_activeGizmoAxis == GizmoAxis::Y) {
+                    scale.setY(qMax(0.001f, m_gizmoStartScale.y() * scaleFactor));
+                } else if (m_activeGizmoAxis == GizmoAxis::Z) {
+                    scale.setZ(qMax(0.001f, m_gizmoStartScale.z() * scaleFactor));
+                }
+            }
+
+            setModelTransform(m_selectedModelId, translation, rotation, scale);
+        }
+
+        m_lastMousePos = event->pos();
+        event->accept();
+        return;
+    }
+
     m_lastMousePos = event->pos();
     currentCamera()->handleMouseMove(event->pos());
     event->accept();
@@ -526,7 +646,13 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
 
 void GLViewport::mouseReleaseEvent(QMouseEvent *event)
 {
-    currentCamera()->handleMouseRelease(event->button(), event->pos());
+    const bool wasDragging = m_gizmoDragging;
+    m_gizmoDragging = false;
+    m_activeGizmoAxis = GizmoAxis::None;
+
+    if (!wasDragging) {
+        currentCamera()->handleMouseRelease(event->button(), event->pos());
+    }
     event->accept();
 }
 
@@ -540,6 +666,187 @@ const Camera *GLViewport::currentCamera() const
 {
     return m_cameraMode == CameraMode::Orbit ? static_cast<const Camera *>(&m_orbitCamera)
                                               : static_cast<const Camera *>(&m_flyCamera);
+}
+
+QVector3D GLViewport::selectedModelWorldCenter(const SceneModel &model) const
+{
+    const QVector3D localCenter = (model.bboxMin + model.bboxMax) * 0.5f;
+    return (modelMatrix(model) * QVector4D(localCenter, 1.0f)).toVector3D();
+}
+
+float GLViewport::worldUnitsPerPixelAt(const QVector3D &worldPoint) const
+{
+    const float distance = qMax(0.1f, (currentCamera()->position() - worldPoint).length());
+    const float aspect = height() > 0 ? static_cast<float>(width()) / static_cast<float>(height()) : 1.0f;
+    const QMatrix4x4 proj = currentCamera()->projMatrix(aspect);
+    const float projY = qMax(0.0001f, std::abs(proj(1, 1)));
+    return (2.0f * distance) / (qMax(1, height()) * projY);
+}
+
+QPointF GLViewport::projectToScreen(const QVector3D &worldPoint, const QMatrix4x4 &viewProj) const
+{
+    const QVector4D clip = viewProj * QVector4D(worldPoint, 1.0f);
+    if (qFuzzyIsNull(clip.w())) {
+        return QPointF(-10000.0, -10000.0);
+    }
+    const QVector3D ndc = (clip / clip.w()).toVector3D();
+    const float sx = (ndc.x() * 0.5f + 0.5f) * static_cast<float>(width());
+    const float sy = (1.0f - (ndc.y() * 0.5f + 0.5f)) * static_cast<float>(height());
+    return QPointF(sx, sy);
+}
+
+GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
+{
+    if (m_selectedModelId < 0) {
+        return GizmoAxis::None;
+    }
+    const SceneModel *selected = findModel(m_selectedModelId);
+    if (selected == nullptr) {
+        return GizmoAxis::None;
+    }
+
+    const QVector3D center = selectedModelWorldCenter(*selected);
+    const float worldPerPixel = worldUnitsPerPixelAt(center);
+    const float axisLen = worldPerPixel * 80.0f;
+
+    const float aspect = height() > 0 ? static_cast<float>(width()) / static_cast<float>(height()) : 1.0f;
+    const QMatrix4x4 viewProj = currentCamera()->projMatrix(aspect) * currentCamera()->viewMatrix();
+
+    const QPointF centerPt = projectToScreen(center, viewProj);
+    struct AxisPick {
+        GizmoAxis axis;
+        QVector3D dir;
+    };
+    const std::array<AxisPick, 3> picks = {{{GizmoAxis::X, QVector3D(1.0f, 0.0f, 0.0f)},
+                                            {GizmoAxis::Y, QVector3D(0.0f, 1.0f, 0.0f)},
+                                            {GizmoAxis::Z, QVector3D(0.0f, 0.0f, 1.0f)}}};
+
+    GizmoAxis bestAxis = GizmoAxis::None;
+    float bestDist = 10.0f;
+    for (const AxisPick &entry : picks) {
+        const QPointF endPt = projectToScreen(center + entry.dir * axisLen, viewProj);
+        const QVector2D seg(endPt - centerPt);
+        const float segLenSq = seg.lengthSquared();
+        if (segLenSq < 1e-5f) {
+            continue;
+        }
+        const QVector2D fromStart(QPointF(screenPos) - centerPt);
+        const float t = qBound(0.0f, QVector2D::dotProduct(fromStart, seg) / segLenSq, 1.0f);
+        const QPointF nearest = centerPt + (endPt - centerPt) * t;
+        const float dist = QVector2D(QPointF(screenPos) - nearest).length();
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestAxis = entry.axis;
+        }
+    }
+    return bestAxis;
+}
+
+void GLViewport::drawGizmo(const SceneModel &model, const QMatrix4x4 &view, const QMatrix4x4 &proj)
+{
+    const QVector3D center = selectedModelWorldCenter(model);
+    const float axisLen = worldUnitsPerPixelAt(center) * 80.0f;
+    const float circleRadius = axisLen * 0.75f;
+
+    const QVector3D colorX = (m_activeGizmoAxis == GizmoAxis::X || m_hoveredGizmoAxis == GizmoAxis::X) ? QVector3D(1.0f, 0.85f, 0.3f) : QVector3D(0.96f, 0.26f, 0.26f);
+    const QVector3D colorY = (m_activeGizmoAxis == GizmoAxis::Y || m_hoveredGizmoAxis == GizmoAxis::Y) ? QVector3D(1.0f, 0.85f, 0.3f) : QVector3D(0.22f, 0.9f, 0.22f);
+    const QVector3D colorZ = (m_activeGizmoAxis == GizmoAxis::Z || m_hoveredGizmoAxis == GizmoAxis::Z) ? QVector3D(1.0f, 0.85f, 0.3f) : QVector3D(0.25f, 0.52f, 0.96f);
+
+    if (m_gizmoMode == GizmoMode::Rotate) {
+        drawGizmoCircle(center, QVector3D(1.0f, 0.0f, 0.0f), circleRadius, colorX, view, proj);
+        drawGizmoCircle(center, QVector3D(0.0f, 1.0f, 0.0f), circleRadius, colorY, view, proj);
+        drawGizmoCircle(center, QVector3D(0.0f, 0.0f, 1.0f), circleRadius, colorZ, view, proj);
+    } else {
+        drawGizmoLine(center, center + QVector3D(axisLen, 0.0f, 0.0f), colorX, view, proj);
+        drawGizmoLine(center, center + QVector3D(0.0f, axisLen, 0.0f), colorY, view, proj);
+        drawGizmoLine(center, center + QVector3D(0.0f, 0.0f, axisLen), colorZ, view, proj);
+    }
+}
+
+void GLViewport::drawGizmoLine(const QVector3D &start, const QVector3D &end, const QVector3D &color,
+                               const QMatrix4x4 &view, const QMatrix4x4 &proj)
+{
+    std::vector<Vertex> vertices = {
+        {{start.x(), start.y(), start.z()}, {0.0f, 1.0f, 0.0f}, {color.x(), color.y(), color.z()}},
+        {{end.x(), end.y(), end.z()}, {0.0f, 1.0f, 0.0f}, {color.x(), color.y(), color.z()}},
+    };
+
+    GLuint vao = 0;
+    GLuint vbo = 0;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertices.size() * sizeof(Vertex)), vertices.data(), GL_DYNAMIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void *>(offsetof(Vertex, pos)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void *>(offsetof(Vertex, normal)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void *>(offsetof(Vertex, color)));
+
+    m_shader.setMat4(this, "uModel", QMatrix4x4());
+    m_shader.setMat4(this, "uView", view);
+    m_shader.setMat4(this, "uProj", proj);
+    m_shader.setInt(this, "uUseVertexColor", 1);
+    m_shader.setInt(this, "uEnableSpecular", 0);
+    m_shader.setInt(this, "uShadingModel", 0);
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size()));
+
+    glBindVertexArray(0);
+    glDeleteBuffers(1, &vbo);
+    glDeleteVertexArrays(1, &vao);
+}
+
+void GLViewport::drawGizmoCircle(const QVector3D &center, const QVector3D &axis, float radius, const QVector3D &color,
+                                 const QMatrix4x4 &view, const QMatrix4x4 &proj)
+{
+    constexpr int segments = 48;
+    QVector3D u = QVector3D::crossProduct(axis, QVector3D(0.0f, 1.0f, 0.0f));
+    if (u.lengthSquared() < 1e-4f) {
+        u = QVector3D::crossProduct(axis, QVector3D(1.0f, 0.0f, 0.0f));
+    }
+    u.normalize();
+    QVector3D v = QVector3D::crossProduct(axis, u).normalized();
+
+    std::vector<Vertex> vertices;
+    vertices.reserve(segments * 2);
+    for (int i = 0; i < segments; ++i) {
+        const float a0 = (static_cast<float>(i) / segments) * 2.0f * 3.14159265f;
+        const float a1 = (static_cast<float>(i + 1) / segments) * 2.0f * 3.14159265f;
+        const QVector3D p0 = center + (u * qCos(a0) + v * qSin(a0)) * radius;
+        const QVector3D p1 = center + (u * qCos(a1) + v * qSin(a1)) * radius;
+        vertices.push_back({{p0.x(), p0.y(), p0.z()}, {axis.x(), axis.y(), axis.z()}, {color.x(), color.y(), color.z()}});
+        vertices.push_back({{p1.x(), p1.y(), p1.z()}, {axis.x(), axis.y(), axis.z()}, {color.x(), color.y(), color.z()}});
+    }
+
+    GLuint vao = 0;
+    GLuint vbo = 0;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertices.size() * sizeof(Vertex)), vertices.data(), GL_DYNAMIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void *>(offsetof(Vertex, pos)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void *>(offsetof(Vertex, normal)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), reinterpret_cast<void *>(offsetof(Vertex, color)));
+
+    m_shader.setMat4(this, "uModel", QMatrix4x4());
+    m_shader.setMat4(this, "uView", view);
+    m_shader.setMat4(this, "uProj", proj);
+    m_shader.setInt(this, "uUseVertexColor", 1);
+    m_shader.setInt(this, "uEnableSpecular", 0);
+    m_shader.setInt(this, "uShadingModel", 0);
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices.size()));
+
+    glBindVertexArray(0);
+    glDeleteBuffers(1, &vbo);
+    glDeleteVertexArrays(1, &vao);
 }
 
 void GLViewport::uploadDefaultMesh()
