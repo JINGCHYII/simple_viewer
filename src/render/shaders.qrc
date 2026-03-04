@@ -3,4 +3,8 @@
         <file>shaders/basic.vert</file>
         <file>shaders/blinn_phong.frag</file>
     </qresource>
+    <qresource prefix="/icons">
+        <file>../app/icons/eye_open.svg</file>
+        <file>../app/icons/eye_closed.svg</file>
+    </qresource>
 </RCC>

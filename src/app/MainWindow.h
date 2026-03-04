@@ -11,6 +11,7 @@ class QTreeWidgetItem;
 class QTabWidget;
 class QTextEdit;
 class QDoubleSpinBox;
+class QToolButton;
 
 class MainWindow : public QMainWindow
 {
@@ -26,6 +27,8 @@ private:
     void setupTheme();
     void refreshStatusLabels();
     void refreshModelTree();
+    void refreshModelVisibilityRow(int modelId, bool visible);
+    QToolButton *createVisibilityButton(int modelId, bool visible);
     void refreshTransformPanel();
     void appendLog(const QString &message, bool isError = false);
 
