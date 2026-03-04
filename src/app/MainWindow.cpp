@@ -138,13 +138,6 @@ void MainWindow::setupMenus()
         m_viewport->setCameraMode(GLViewport::CameraMode::Fly);
     });
 
-    m_autoFitCameraAction = viewMenu->addAction(tr("Auto Fit Camera"));
-    m_autoFitCameraAction->setCheckable(true);
-    m_autoFitCameraAction->setChecked(m_viewport->autoFitEnabled());
-    connect(m_autoFitCameraAction, &QAction::toggled, this, [this](bool enabled) {
-        m_viewport->setAutoFitEnabled(enabled);
-    });
-
     viewMenu->addSeparator();
 
     auto *shadingMenu = viewMenu->addMenu(tr("Shading"));
@@ -520,7 +513,6 @@ void MainWindow::refreshStatusLabels()
 
     m_orbitCameraAction->setChecked(m_viewport->cameraMode() == GLViewport::CameraMode::Orbit);
     m_flyCameraAction->setChecked(m_viewport->cameraMode() == GLViewport::CameraMode::Fly);
-    m_autoFitCameraAction->setChecked(m_viewport->autoFitEnabled());
 
     m_solidWireOverlayAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::SolidWireOverlay);
     m_gizmoSpaceWorldAction->setChecked(m_viewport->gizmoSpace() == GLViewport::GizmoSpace::World);
