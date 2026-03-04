@@ -48,5 +48,10 @@ void main()
     vec3 diffuse = diff * uLightColor * baseColor;
     vec3 specular = uSpecularStrength * spec * uLightColor;
 
-    FragColor = vec4(ambient + diffuse + specular, 1.0);
+    vec3 color = ambient + diffuse + specular;
+    color = color / (vec3(1.0) + color);
+    color = clamp(color, 0.0, 1.0);
+    color = pow(color, vec3(1.0 / 2.2));
+
+    FragColor = vec4(color, 1.0);
 }
