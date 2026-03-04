@@ -88,9 +88,6 @@ public:
     void setGizmoSpace(GizmoSpace space);
     GizmoSpace gizmoSpace() const;
 
-    void setAutoFitEnabled(bool enabled);
-    bool autoFitEnabled() const;
-
     int vertexCount() const;
     int faceCount() const;
 
@@ -186,8 +183,6 @@ private:
     QVector3D m_gizmoStartRotation{0.0f, 0.0f, 0.0f};
     QVector3D m_gizmoStartScale{1.0f, 1.0f, 1.0f};
     float m_pointSize{3.0f};
-    bool m_autoFitEnabled{true};
-
     QVector<SceneModel> m_models;
     int m_nextModelId{1};
     int m_selectedModelId{-1};

@@ -37,7 +37,6 @@ private:
     QAction *m_importAction{nullptr};
     QAction *m_orbitCameraAction{nullptr};
     QAction *m_flyCameraAction{nullptr};
-    QAction *m_autoFitCameraAction{nullptr};
     QAction *m_solidWireOverlayAction{nullptr};
     QAction *m_pointColorVertexAction{nullptr};
     QAction *m_pointColorHeightAction{nullptr};

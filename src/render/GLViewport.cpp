@@ -157,16 +157,6 @@ GLViewport::GizmoSpace GLViewport::gizmoSpace() const
     return m_gizmoSpace;
 }
 
-void GLViewport::setAutoFitEnabled(bool enabled)
-{
-    m_autoFitEnabled = enabled;
-}
-
-bool GLViewport::autoFitEnabled() const
-{
-    return m_autoFitEnabled;
-}
-
 int GLViewport::vertexCount() const
 {
     return m_vertexCount;
@@ -314,9 +304,7 @@ bool GLViewport::setModelVisible(int modelId, bool visible)
     }
     model->visible = visible;
     recomputeSceneBounds();
-    if (m_autoFitEnabled) {
-        frameAll();
-    }
+    frameAll();
     emit modelListChanged();
     if (m_selectedModelId == modelId) {
         emit selectedModelChanged(modelId);
@@ -347,7 +335,7 @@ bool GLViewport::removeModel(int modelId)
         const bool hasVisibleModels = std::any_of(m_models.cbegin(), m_models.cend(), [](const SceneModel &model) {
             return model.visible;
         });
-        if (m_autoFitEnabled && hasVisibleModels) {
+        if (hasVisibleModels) {
             frameAll();
         }
         emit modelListChanged();
@@ -388,9 +376,7 @@ bool GLViewport::setModelTransform(int modelId, const QVector3D &translation, co
     model->rotationEuler = rotationEuler;
     model->scale = QVector3D(qMax(0.001f, scale.x()), qMax(0.001f, scale.y()), qMax(0.001f, scale.z()));
     recomputeSceneBounds();
-    if (m_autoFitEnabled) {
-        frameAll();
-    }
+    frameAll();
     emit modelListChanged();
     if (m_selectedModelId == modelId) {
         emit selectedModelChanged(modelId);
