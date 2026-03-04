@@ -218,10 +218,6 @@ bool GLViewport::loadModel(const QString &path)
     model.vertexCount = static_cast<int>(vertices.size());
     model.faceCount = hasMesh ? static_cast<int>(loader.meshData().indices.size() / 3) : 0;
 
-    if (!hasMesh) {
-        setRenderMode(RenderMode::PointCloud);
-    }
-
     m_models.push_back(std::move(model));
     if (m_selectedModelId < 0) {
         m_selectedModelId = m_models.back().id;
@@ -386,7 +382,11 @@ void GLViewport::paintGL()
     m_shader.setFloat(this, "uSpecularStrength", baseSpecularStrength);
     m_shader.setFloat(this, "uShininess", 48.0f);
     m_shader.setInt(this, "uUseVertexColor", 1);
-    m_shader.setInt(this, "uEnableSpecular", m_renderMode == RenderMode::Wireframe ? 0 : 1);
+    m_shader.setInt(this, "uEnableSpecular", 1);
+    m_shader.setInt(this, "uShadingModel", 0);
+    m_shader.setFloat(this, "uRimStrength", 0.0f);
+    m_shader.setFloat(this, "uFlatFactor", 0.0f);
+    m_shader.setFloat(this, "uGamma", 2.2f);
     m_shader.setFloat(this, "uPointSize", m_pointSize);
     m_shader.setInt(this, "uPointColorMode", m_pointColorMode == PointColorMode::VertexColor ? 0 : 1);
 
@@ -395,8 +395,8 @@ void GLViewport::paintGL()
             continue;
         }
 
-        const bool drawPoints = (m_renderMode == RenderMode::PointCloud && model.hasPointCloud && model.pointCloud.isValid());
-        const bool drawMesh = (m_renderMode != RenderMode::PointCloud && model.hasMesh && model.mesh.isValid());
+        const bool drawMesh = model.hasMesh && model.mesh.isValid();
+        const bool drawPoints = !drawMesh && model.hasPointCloud && model.pointCloud.isValid();
         if (!drawPoints && !drawMesh) {
             continue;
         }
@@ -411,37 +411,54 @@ void GLViewport::paintGL()
 
         if (drawPoints) {
             m_shader.setInt(this, "uEnableSpecular", 0);
+            m_shader.setInt(this, "uShadingModel", 0);
+            m_shader.setFloat(this, "uRimStrength", 0.0f);
+            m_shader.setFloat(this, "uFlatFactor", 0.0f);
+            m_shader.setFloat(this, "uGamma", 2.2f);
             m_shader.setFloat(this, "uAmbientStrength", selected ? 0.18f : 0.12f);
             m_shader.setFloat(this, "uSpecularStrength", 0.0f);
             model.pointCloud.draw(this);
             m_shader.setFloat(this, "uAmbientStrength", baseAmbientStrength);
             m_shader.setFloat(this, "uSpecularStrength", baseSpecularStrength);
-        } else if (m_renderMode == RenderMode::Wireframe) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            model.mesh.draw(this);
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        } else if (m_renderMode == RenderMode::SolidWireOverlay) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        } else {
+            m_shader.setInt(this, "uShadingModel", 1);
+            m_shader.setFloat(this, "uAmbientStrength", selected ? 0.18f : 0.14f);
+            m_shader.setFloat(this, "uSpecularStrength", selected ? 0.34f : 0.30f);
+            m_shader.setFloat(this, "uShininess", 84.0f);
+            m_shader.setInt(this, "uEnableSpecular", 1);
+            m_shader.setFloat(this, "uRimStrength", selected ? 0.24f : 0.18f);
+            m_shader.setFloat(this, "uFlatFactor", 0.30f);
+            m_shader.setFloat(this, "uGamma", 1.9f);
             model.mesh.draw(this);
 
-            glEnable(GL_POLYGON_OFFSET_LINE);
-            glPolygonOffset(-1.0f, -1.0f);
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            m_shader.setInt(this, "uUseVertexColor", 0);
-            m_shader.setVec3(this, "uMaterialColor", QVector3D(0.02f, 0.02f, 0.02f));
-            m_shader.setFloat(this, "uAmbientStrength", 1.0f);
-            m_shader.setFloat(this, "uSpecularStrength", 0.0f);
-            m_shader.setInt(this, "uEnableSpecular", 0);
-            model.mesh.draw(this);
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-            glDisable(GL_POLYGON_OFFSET_LINE);
+            if (m_renderMode == RenderMode::SolidWireOverlay) {
+                glEnable(GL_POLYGON_OFFSET_LINE);
+                glPolygonOffset(-1.0f, -1.0f);
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                m_shader.setInt(this, "uUseVertexColor", 0);
+                m_shader.setVec3(this, "uMaterialColor", QVector3D(0.03f, 0.03f, 0.04f));
+                m_shader.setFloat(this, "uAmbientStrength", 1.0f);
+                m_shader.setFloat(this, "uSpecularStrength", 0.0f);
+                m_shader.setInt(this, "uEnableSpecular", 0);
+                m_shader.setInt(this, "uShadingModel", 0);
+                m_shader.setFloat(this, "uRimStrength", 0.0f);
+                m_shader.setFloat(this, "uFlatFactor", 0.0f);
+                m_shader.setFloat(this, "uGamma", 2.2f);
+                model.mesh.draw(this);
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                glDisable(GL_POLYGON_OFFSET_LINE);
 
-            m_shader.setInt(this, "uUseVertexColor", 1);
+                m_shader.setInt(this, "uUseVertexColor", 1);
+            }
+
             m_shader.setFloat(this, "uAmbientStrength", baseAmbientStrength);
             m_shader.setFloat(this, "uSpecularStrength", baseSpecularStrength);
+            m_shader.setFloat(this, "uShininess", 48.0f);
             m_shader.setInt(this, "uEnableSpecular", 1);
-        } else {
-            model.mesh.draw(this);
+            m_shader.setInt(this, "uShadingModel", 0);
+            m_shader.setFloat(this, "uRimStrength", 0.0f);
+            m_shader.setFloat(this, "uFlatFactor", 0.0f);
+            m_shader.setFloat(this, "uGamma", 2.2f);
         }
     }
 

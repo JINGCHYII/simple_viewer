@@ -135,36 +135,12 @@ void MainWindow::setupMenus()
     viewMenu->addSeparator();
 
     auto *shadingMenu = viewMenu->addMenu(tr("Shading"));
-    auto *shadingGroup = new QActionGroup(this);
-
-    m_solidShadingAction = shadingMenu->addAction(tr("Solid"));
-    m_solidShadingAction->setCheckable(true);
-    m_solidShadingAction->setChecked(true);
-    shadingGroup->addAction(m_solidShadingAction);
-
-    m_wireframeShadingAction = shadingMenu->addAction(tr("Wireframe"));
-    m_wireframeShadingAction->setCheckable(true);
-    shadingGroup->addAction(m_wireframeShadingAction);
-
     m_solidWireOverlayAction = shadingMenu->addAction(tr("Solid + Wireframe Overlay"));
     m_solidWireOverlayAction->setCheckable(true);
-    shadingGroup->addAction(m_solidWireOverlayAction);
-
-    m_pointCloudAction = shadingMenu->addAction(tr("Point Cloud"));
-    m_pointCloudAction->setCheckable(true);
-    shadingGroup->addAction(m_pointCloudAction);
-
-    connect(m_solidShadingAction, &QAction::triggered, this, [this]() {
-        m_viewport->setRenderMode(GLViewport::RenderMode::Solid);
-    });
-    connect(m_wireframeShadingAction, &QAction::triggered, this, [this]() {
-        m_viewport->setRenderMode(GLViewport::RenderMode::Wireframe);
-    });
-    connect(m_solidWireOverlayAction, &QAction::triggered, this, [this]() {
-        m_viewport->setRenderMode(GLViewport::RenderMode::SolidWireOverlay);
-    });
-    connect(m_pointCloudAction, &QAction::triggered, this, [this]() {
-        m_viewport->setRenderMode(GLViewport::RenderMode::PointCloud);
+    m_solidWireOverlayAction->setChecked(false);
+    connect(m_solidWireOverlayAction, &QAction::toggled, this, [this](bool enabled) {
+        m_viewport->setRenderMode(enabled ? GLViewport::RenderMode::SolidWireOverlay
+                                          : GLViewport::RenderMode::Solid);
     });
 
     auto *shortcutsMenu = viewMenu->addMenu(tr("Quick Views"));
@@ -452,14 +428,8 @@ void MainWindow::refreshStatusLabels()
     case GLViewport::RenderMode::Solid:
         renderModeText = tr("Solid");
         break;
-    case GLViewport::RenderMode::Wireframe:
-        renderModeText = tr("Wireframe");
-        break;
     case GLViewport::RenderMode::SolidWireOverlay:
         renderModeText = tr("Solid+Wire");
-        break;
-    case GLViewport::RenderMode::PointCloud:
-        renderModeText = tr("PointCloud");
         break;
     }
 
@@ -471,10 +441,7 @@ void MainWindow::refreshStatusLabels()
     m_flyCameraAction->setChecked(m_viewport->cameraMode() == GLViewport::CameraMode::Fly);
     m_autoFitCameraAction->setChecked(m_viewport->autoFitEnabled());
 
-    m_solidShadingAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::Solid);
-    m_wireframeShadingAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::Wireframe);
     m_solidWireOverlayAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::SolidWireOverlay);
-    m_pointCloudAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::PointCloud);
 }
 
 void MainWindow::refreshModelTree()
