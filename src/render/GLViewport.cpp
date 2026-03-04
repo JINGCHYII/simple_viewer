@@ -376,7 +376,6 @@ bool GLViewport::setModelTransform(int modelId, const QVector3D &translation, co
     model->rotationEuler = rotationEuler;
     model->scale = QVector3D(std::max(0.001f, scale.x()), std::max(0.001f, scale.y()), std::max(0.001f, scale.z()));
     recomputeSceneBounds();
-    frameAll();
     emit modelListChanged();
     if (m_selectedModelId == modelId) {
         emit selectedModelChanged(modelId);

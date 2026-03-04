@@ -13,10 +13,12 @@ constexpr float kMaxDistance = 200.0f;
 constexpr float kRotateSensitivity = 0.25f;
 constexpr float kPanSensitivity = 0.004f;
 constexpr float kZoomSensitivity = 0.0009f;
-constexpr float kPitchLimit = 89.0f;
 }
 
-OrbitCamera::OrbitCamera() = default;
+OrbitCamera::OrbitCamera()
+    : m_orientation(QQuaternion::fromDirection(QVector3D(0.0f, 0.0f, -1.0f), QVector3D(0.0f, 1.0f, 0.0f)))
+{
+}
 
 QMatrix4x4 OrbitCamera::viewMatrix() const
 {
@@ -48,9 +50,9 @@ void OrbitCamera::handleMouseMove(const QPoint &pos)
     m_lastMousePos = pos;
 
     if (m_rotating) {
-        m_yaw += delta.x() * kRotateSensitivity;
-        m_pitch -= delta.y() * kRotateSensitivity;
-        m_pitch = qBound(-kPitchLimit, m_pitch, kPitchLimit);
+        const QQuaternion yawRot = QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), delta.x() * kRotateSensitivity);
+        const QQuaternion pitchRot = QQuaternion::fromAxisAndAngle(right(), -delta.y() * kRotateSensitivity);
+        m_orientation = (pitchRot * yawRot * m_orientation).normalized();
     }
 
     if (m_panning) {
@@ -89,25 +91,25 @@ void OrbitCamera::update(float)
 
 QVector3D OrbitCamera::position() const
 {
-    const float yawRad = qDegreesToRadians(m_yaw);
-    const float pitchRad = qDegreesToRadians(m_pitch);
-
-    QVector3D offset;
-    offset.setX(std::cos(yawRad) * std::cos(pitchRad));
-    offset.setY(std::sin(pitchRad));
-    offset.setZ(std::sin(yawRad) * std::cos(pitchRad));
-
-    return m_target - offset.normalized() * m_distance;
+    return m_target - forward() * m_distance;
 }
 
 QVector3D OrbitCamera::forward() const
 {
-    return (m_target - position()).normalized();
+    const QVector3D dir = m_orientation.rotatedVector(QVector3D(0.0f, 0.0f, -1.0f)).normalized();
+    if (qFuzzyIsNull(dir.lengthSquared())) {
+        return QVector3D(0.0f, 0.0f, -1.0f);
+    }
+    return dir;
 }
 
 QVector3D OrbitCamera::up() const
 {
-    return QVector3D::crossProduct(right(), forward()).normalized();
+    const QVector3D upVec = m_orientation.rotatedVector(QVector3D(0.0f, 1.0f, 0.0f)).normalized();
+    if (qFuzzyIsNull(upVec.lengthSquared())) {
+        return QVector3D(0.0f, 1.0f, 0.0f);
+    }
+    return upVec;
 }
 
 void OrbitCamera::setFromView(const QVector3D &pos, const QVector3D &fwd, const QVector3D &up)
@@ -120,17 +122,21 @@ void OrbitCamera::setFromView(const QVector3D &pos, const QVector3D &fwd, const 
 
 QVector3D OrbitCamera::right() const
 {
-    const QVector3D worldUp(0.0f, 1.0f, 0.0f);
-    return QVector3D::crossProduct(forward(), worldUp).normalized();
+    const QVector3D rightVec = m_orientation.rotatedVector(QVector3D(1.0f, 0.0f, 0.0f)).normalized();
+    if (qFuzzyIsNull(rightVec.lengthSquared())) {
+        return QVector3D(1.0f, 0.0f, 0.0f);
+    }
+    return rightVec;
 }
 
 void OrbitCamera::setTargetAndDistance(const QVector3D &target, float distance, const QVector3D &forward, const QVector3D &)
 {
     m_target = target;
     m_distance = qBound(kMinDistance, distance, kMaxDistance);
-
     const QVector3D dir = forward.normalized();
-    m_yaw = qRadiansToDegrees(qAtan2(dir.z(), dir.x()));
-    m_pitch = qRadiansToDegrees(qAsin(dir.y()));
-    m_pitch = qBound(-kPitchLimit, m_pitch, kPitchLimit);
+    if (qFuzzyIsNull(dir.lengthSquared())) {
+        m_orientation = QQuaternion::fromDirection(QVector3D(0.0f, 0.0f, -1.0f), QVector3D(0.0f, 1.0f, 0.0f));
+    } else {
+        m_orientation = QQuaternion::fromDirection(dir, QVector3D(0.0f, 1.0f, 0.0f));
+    }
 }
