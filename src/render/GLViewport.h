@@ -4,7 +4,10 @@
 #include <QOpenGLFunctions_3_3_Core>
 #include <QOpenGLWidget>
 #include <QPoint>
+#include <QString>
 #include <QTimer>
+#include <QVector>
+#include <QVector3D>
 
 #include "camera/FlyCamera.h"
 #include "camera/OrbitCamera.h"
@@ -34,6 +37,19 @@ public:
         HeightRamp,
     };
 
+    struct ModelInfo
+    {
+        int id{-1};
+        QString name;
+        QString path;
+        bool visible{true};
+        int vertexCount{0};
+        int faceCount{0};
+        QVector3D translation{0.0f, 0.0f, 0.0f};
+        QVector3D rotationEuler{0.0f, 0.0f, 0.0f};
+        QVector3D scale{1.0f, 1.0f, 1.0f};
+    };
+
     explicit GLViewport(QWidget *parent = nullptr);
     ~GLViewport() override;
 
@@ -59,11 +75,20 @@ public:
     void setTopView();
 
     bool loadModel(const QString &path);
+    QVector<ModelInfo> modelInfos() const;
+    bool setModelVisible(int modelId, bool visible);
+    bool removeModel(int modelId);
+    bool selectModel(int modelId);
+    int selectedModelId() const;
+    bool setModelTransform(int modelId, const QVector3D &translation, const QVector3D &rotationEuler, const QVector3D &scale);
 
 signals:
     void cameraModeChanged(GLViewport::CameraMode mode);
     void renderModeChanged(GLViewport::RenderMode mode);
     void modelStatsChanged(int vertexCount, int faceCount);
+    void modelListChanged();
+    void selectedModelChanged(int modelId);
+    void logMessage(const QString &message, bool isError);
 
 protected:
     void initializeGL() override;
@@ -78,9 +103,33 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
 
 private:
+    struct SceneModel
+    {
+        int id{-1};
+        QString name;
+        QString path;
+        bool visible{true};
+        Mesh mesh;
+        PointCloud pointCloud;
+        bool hasMesh{false};
+        bool hasPointCloud{false};
+        QVector3D bboxMin{0.0f, 0.0f, 0.0f};
+        QVector3D bboxMax{0.0f, 0.0f, 0.0f};
+        QVector3D translation{0.0f, 0.0f, 0.0f};
+        QVector3D rotationEuler{0.0f, 0.0f, 0.0f};
+        QVector3D scale{1.0f, 1.0f, 1.0f};
+        int vertexCount{0};
+        int faceCount{0};
+    };
+
     Camera *currentCamera();
     const Camera *currentCamera() const;
     void uploadDefaultMesh();
+    SceneModel *findModel(int modelId);
+    const SceneModel *findModel(int modelId) const;
+    void recomputeSceneBounds();
+    QMatrix4x4 modelMatrix(const SceneModel &model) const;
+    void updateSceneStats();
 
     QPoint m_lastMousePos;
     OrbitCamera m_orbitCamera;
@@ -90,8 +139,10 @@ private:
     PointColorMode m_pointColorMode{PointColorMode::VertexColor};
     float m_pointSize{3.0f};
 
-    Mesh m_mesh;
-    PointCloud m_pointCloud;
+    QVector<SceneModel> m_models;
+    int m_nextModelId{1};
+    int m_selectedModelId{-1};
+
     Shader m_shader;
 
     QVector3D m_bboxMin{-1.0f, -1.0f, -1.0f};
