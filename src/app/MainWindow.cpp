@@ -73,6 +73,12 @@ MainWindow::MainWindow(QWidget *parent)
         m_gizmoRotateAction->setChecked(mode == GLViewport::GizmoMode::Rotate);
         m_gizmoScaleAction->setChecked(mode == GLViewport::GizmoMode::Scale);
     });
+    connect(m_viewport, &GLViewport::gizmoSpaceChanged, this, [this](GLViewport::GizmoSpace space) {
+        m_gizmoSpaceWorldAction->setChecked(space == GLViewport::GizmoSpace::World);
+        m_gizmoSpaceLocalAction->setChecked(space == GLViewport::GizmoSpace::Local);
+        refreshStatusLabels();
+        appendLog(tr("Gizmo space: %1").arg(space == GLViewport::GizmoSpace::World ? tr("World") : tr("Local")));
+    });
     connect(m_viewport, &GLViewport::modelStatsChanged, this, [this](int vertexCount, int faceCount) {
         m_vertexCount = vertexCount;
         m_faceCount = faceCount;
@@ -198,8 +204,28 @@ void MainWindow::setupMenus()
         m_viewport->setGizmoMode(GLViewport::GizmoMode::Scale);
     });
 
+    gizmoMenu->addSeparator();
+    auto *gizmoSpaceGroup = new QActionGroup(this);
+    m_gizmoSpaceWorldAction = gizmoMenu->addAction(tr("World Space"));
+    m_gizmoSpaceWorldAction->setCheckable(true);
+    m_gizmoSpaceWorldAction->setChecked(true);
+    gizmoSpaceGroup->addAction(m_gizmoSpaceWorldAction);
+
+    m_gizmoSpaceLocalAction = gizmoMenu->addAction(tr("Local Space"));
+    m_gizmoSpaceLocalAction->setCheckable(true);
+    gizmoSpaceGroup->addAction(m_gizmoSpaceLocalAction);
+
+    connect(m_gizmoSpaceWorldAction, &QAction::triggered, this, [this]() {
+        m_viewport->setGizmoSpace(GLViewport::GizmoSpace::World);
+    });
+    connect(m_gizmoSpaceLocalAction, &QAction::triggered, this, [this]() {
+        m_viewport->setGizmoSpace(GLViewport::GizmoSpace::Local);
+    });
+
     auto *gizmoToolbar = addToolBar(tr("Gizmo"));
     gizmoToolbar->addActions(gizmoGroup->actions());
+    gizmoToolbar->addSeparator();
+    gizmoToolbar->addActions(gizmoSpaceGroup->actions());
 
     auto *pointMenu = viewMenu->addMenu(tr("Point Cloud Settings"));
 
@@ -236,10 +262,12 @@ void MainWindow::setupStatusBar()
     m_cameraStatusLabel = new QLabel(this);
     m_meshStatsLabel = new QLabel(this);
     m_shadingStatusLabel = new QLabel(this);
+    m_gizmoSpaceStatusLabel = new QLabel(this);
 
     statusBar()->addPermanentWidget(m_cameraStatusLabel);
     statusBar()->addPermanentWidget(m_meshStatsLabel);
     statusBar()->addPermanentWidget(m_shadingStatusLabel);
+    statusBar()->addPermanentWidget(m_gizmoSpaceStatusLabel);
 }
 
 void MainWindow::setupPanels()
@@ -487,12 +515,16 @@ void MainWindow::refreshStatusLabels()
     m_cameraStatusLabel->setText(tr("Camera: %1").arg(cameraModeText));
     m_meshStatsLabel->setText(tr("Scene Vertices: %1  Faces: %2").arg(m_vertexCount).arg(m_faceCount));
     m_shadingStatusLabel->setText(tr("Shading: %1").arg(renderModeText));
+    const QString gizmoSpaceText = m_viewport->gizmoSpace() == GLViewport::GizmoSpace::World ? tr("World") : tr("Local");
+    m_gizmoSpaceStatusLabel->setText(tr("Gizmo: %1").arg(gizmoSpaceText));
 
     m_orbitCameraAction->setChecked(m_viewport->cameraMode() == GLViewport::CameraMode::Orbit);
     m_flyCameraAction->setChecked(m_viewport->cameraMode() == GLViewport::CameraMode::Fly);
     m_autoFitCameraAction->setChecked(m_viewport->autoFitEnabled());
 
     m_solidWireOverlayAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::SolidWireOverlay);
+    m_gizmoSpaceWorldAction->setChecked(m_viewport->gizmoSpace() == GLViewport::GizmoSpace::World);
+    m_gizmoSpaceLocalAction->setChecked(m_viewport->gizmoSpace() == GLViewport::GizmoSpace::Local);
 }
 
 void MainWindow::refreshModelTree()

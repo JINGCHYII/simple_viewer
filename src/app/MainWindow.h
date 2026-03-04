@@ -45,11 +45,14 @@ private:
     QAction *m_gizmoTranslateAction{nullptr};
     QAction *m_gizmoRotateAction{nullptr};
     QAction *m_gizmoScaleAction{nullptr};
+    QAction *m_gizmoSpaceWorldAction{nullptr};
+    QAction *m_gizmoSpaceLocalAction{nullptr};
     QSlider *m_pointSizeSlider{nullptr};
 
     QLabel *m_cameraStatusLabel{nullptr};
     QLabel *m_meshStatsLabel{nullptr};
     QLabel *m_shadingStatusLabel{nullptr};
+    QLabel *m_gizmoSpaceStatusLabel{nullptr};
 
     QTreeWidget *m_sceneTree{nullptr};
     QTabWidget *m_propertyTabs{nullptr};

@@ -134,6 +134,22 @@ GLViewport::GizmoMode GLViewport::gizmoMode() const
     return m_gizmoMode;
 }
 
+void GLViewport::setGizmoSpace(GizmoSpace space)
+{
+    if (m_gizmoSpace == space) {
+        return;
+    }
+
+    m_gizmoSpace = space;
+    emit gizmoSpaceChanged(space);
+    update();
+}
+
+GLViewport::GizmoSpace GLViewport::gizmoSpace() const
+{
+    return m_gizmoSpace;
+}
+
 void GLViewport::setAutoFitEnabled(bool enabled)
 {
     m_autoFitEnabled = enabled;
@@ -594,19 +610,7 @@ void GLViewport::mouseMoveEvent(QMouseEvent *event)
             const float worldPerPixel = worldUnitsPerPixelAt(center);
             const QPoint delta = event->pos() - m_gizmoDragStartScreen;
 
-            const QVector3D axisVector = [this]() {
-                switch (m_activeGizmoAxis) {
-                case GizmoAxis::X:
-                    return QVector3D(1.0f, 0.0f, 0.0f);
-                case GizmoAxis::Y:
-                    return QVector3D(0.0f, 1.0f, 0.0f);
-                case GizmoAxis::Z:
-                    return QVector3D(0.0f, 0.0f, 1.0f);
-                case GizmoAxis::None:
-                default:
-                    return QVector3D(0.0f, 0.0f, 0.0f);
-                }
-            }();
+            const QVector3D axisVector = gizmoAxisVector(m_activeGizmoAxis, *selected);
 
             const float aspect = height() > 0 ? static_cast<float>(width()) / static_cast<float>(height()) : 1.0f;
             const QMatrix4x4 viewProj = currentCamera()->projMatrix(aspect) * currentCamera()->viewMatrix();
@@ -711,6 +715,36 @@ QPointF GLViewport::projectToScreen(const QVector3D &worldPoint, const QMatrix4x
     return QPointF(sx, sy);
 }
 
+QVector3D GLViewport::gizmoAxisVector(GizmoAxis axis, const SceneModel &model) const
+{
+    QVector3D baseAxis;
+    switch (axis) {
+    case GizmoAxis::X:
+        baseAxis = QVector3D(1.0f, 0.0f, 0.0f);
+        break;
+    case GizmoAxis::Y:
+        baseAxis = QVector3D(0.0f, 1.0f, 0.0f);
+        break;
+    case GizmoAxis::Z:
+        baseAxis = QVector3D(0.0f, 0.0f, 1.0f);
+        break;
+    case GizmoAxis::None:
+    default:
+        return QVector3D(0.0f, 0.0f, 0.0f);
+    }
+
+    if (m_gizmoSpace == GizmoSpace::World) {
+        return baseAxis;
+    }
+
+    const QMatrix4x4 modelMat = modelMatrix(model);
+    QVector3D localInWorld = (modelMat * QVector4D(baseAxis, 0.0f)).toVector3D();
+    if (localInWorld.lengthSquared() < 1e-6f) {
+        return baseAxis;
+    }
+    return localInWorld.normalized();
+}
+
 
 GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
 {
@@ -730,18 +764,13 @@ GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
     const QMatrix4x4 viewProj = currentCamera()->projMatrix(aspect) * currentCamera()->viewMatrix();
 
     const QPointF centerPt = projectToScreen(center, viewProj);
-    struct AxisPick {
-        GizmoAxis axis;
-        QVector3D dir;
-    };
-    const std::array<AxisPick, 3> picks = {{{GizmoAxis::X, QVector3D(1.0f, 0.0f, 0.0f)},
-                                            {GizmoAxis::Y, QVector3D(0.0f, 1.0f, 0.0f)},
-                                            {GizmoAxis::Z, QVector3D(0.0f, 0.0f, 1.0f)}}};
+    const std::array<GizmoAxis, 3> picks = {GizmoAxis::X, GizmoAxis::Y, GizmoAxis::Z};
 
     GizmoAxis bestAxis = GizmoAxis::None;
     float bestDist = 10.0f;
-    for (const AxisPick &entry : picks) {
-        const QPointF endPt = projectToScreen(center + entry.dir * axisLen, viewProj);
+    for (GizmoAxis axis : picks) {
+        const QVector3D axisDir = gizmoAxisVector(axis, *selected);
+        const QPointF endPt = projectToScreen(center + axisDir * axisLen, viewProj);
         const QVector2D seg(endPt - centerPt);
         const float segLenSq = seg.lengthSquared();
         if (segLenSq < 1e-5f) {
@@ -753,7 +782,7 @@ GLViewport::GizmoAxis GLViewport::pickGizmoAxis(const QPoint &screenPos) const
         const float dist = QVector2D(QPointF(screenPos) - nearest).length();
         if (dist < bestDist) {
             bestDist = dist;
-            bestAxis = entry.axis;
+            bestAxis = axis;
         }
     }
     return bestAxis;
@@ -773,14 +802,18 @@ void GLViewport::drawGizmo(const SceneModel &model, const QMatrix4x4 &view, cons
     const QVector3D colorY = (m_activeGizmoAxis == GizmoAxis::Y || m_hoveredGizmoAxis == GizmoAxis::Y) ? QVector3D(1.0f, 0.85f, 0.3f) : QVector3D(0.22f, 0.9f, 0.22f);
     const QVector3D colorZ = (m_activeGizmoAxis == GizmoAxis::Z || m_hoveredGizmoAxis == GizmoAxis::Z) ? QVector3D(1.0f, 0.85f, 0.3f) : QVector3D(0.25f, 0.52f, 0.96f);
 
+    const QVector3D axisX = gizmoAxisVector(GizmoAxis::X, model);
+    const QVector3D axisY = gizmoAxisVector(GizmoAxis::Y, model);
+    const QVector3D axisZ = gizmoAxisVector(GizmoAxis::Z, model);
+
     if (m_gizmoMode == GizmoMode::Rotate) {
-        drawGizmoCircle(center, QVector3D(1.0f, 0.0f, 0.0f), circleRadius, colorX, view, proj);
-        drawGizmoCircle(center, QVector3D(0.0f, 1.0f, 0.0f), circleRadius, colorY, view, proj);
-        drawGizmoCircle(center, QVector3D(0.0f, 0.0f, 1.0f), circleRadius, colorZ, view, proj);
+        drawGizmoCircle(center, axisX, circleRadius, colorX, view, proj);
+        drawGizmoCircle(center, axisY, circleRadius, colorY, view, proj);
+        drawGizmoCircle(center, axisZ, circleRadius, colorZ, view, proj);
     } else {
-        drawGizmoLine(center, center + QVector3D(axisLen, 0.0f, 0.0f), colorX, view, proj);
-        drawGizmoLine(center, center + QVector3D(0.0f, axisLen, 0.0f), colorY, view, proj);
-        drawGizmoLine(center, center + QVector3D(0.0f, 0.0f, axisLen), colorZ, view, proj);
+        drawGizmoLine(center, center + axisX * axisLen, colorX, view, proj);
+        drawGizmoLine(center, center + axisY * axisLen, colorY, view, proj);
+        drawGizmoLine(center, center + axisZ * axisLen, colorZ, view, proj);
     }
 }
 
