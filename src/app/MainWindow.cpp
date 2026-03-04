@@ -125,6 +125,15 @@ void MainWindow::setupMenus()
         m_viewport->setCameraMode(GLViewport::CameraMode::Fly);
     });
 
+    m_autoFitCameraAction = viewMenu->addAction(tr("Auto Fit Camera"));
+    m_autoFitCameraAction->setCheckable(true);
+    m_autoFitCameraAction->setChecked(m_viewport->autoFitEnabled());
+    connect(m_autoFitCameraAction, &QAction::toggled, this, [this](bool enabled) {
+        m_viewport->setAutoFitEnabled(enabled);
+    });
+
+    viewMenu->addSeparator();
+
     auto *shadingMenu = viewMenu->addMenu(tr("Shading"));
     auto *shadingGroup = new QActionGroup(this);
 
@@ -292,7 +301,7 @@ void MainWindow::setupPanels()
     };
 
     for (QDoubleSpinBox *spin : {m_txSpin, m_tySpin, m_tzSpin, m_rxSpin, m_rySpin, m_rzSpin, m_sxSpin, m_sySpin, m_szSpin}) {
-        connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [applyTransform](double) {
+        connect(spin, &QDoubleSpinBox::editingFinished, this, [applyTransform]() {
             applyTransform();
         });
     }
@@ -382,6 +391,7 @@ void MainWindow::refreshStatusLabels()
 
     m_orbitCameraAction->setChecked(m_viewport->cameraMode() == GLViewport::CameraMode::Orbit);
     m_flyCameraAction->setChecked(m_viewport->cameraMode() == GLViewport::CameraMode::Fly);
+    m_autoFitCameraAction->setChecked(m_viewport->autoFitEnabled());
 
     m_solidShadingAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::Solid);
     m_wireframeShadingAction->setChecked(m_viewport->renderMode() == GLViewport::RenderMode::Wireframe);

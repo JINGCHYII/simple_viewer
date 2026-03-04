@@ -1,5 +1,7 @@
 #include "render/GLViewport.h"
 
+#include <algorithm>
+
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QMatrix4x4>
@@ -98,6 +100,16 @@ void GLViewport::setPointColorMode(PointColorMode mode)
 GLViewport::PointColorMode GLViewport::pointColorMode() const
 {
     return m_pointColorMode;
+}
+
+void GLViewport::setAutoFitEnabled(bool enabled)
+{
+    m_autoFitEnabled = enabled;
+}
+
+bool GLViewport::autoFitEnabled() const
+{
+    return m_autoFitEnabled;
 }
 
 int GLViewport::vertexCount() const
@@ -251,6 +263,9 @@ bool GLViewport::setModelVisible(int modelId, bool visible)
     }
     model->visible = visible;
     recomputeSceneBounds();
+    if (m_autoFitEnabled) {
+        frameAll();
+    }
     update();
     return true;
 }
@@ -274,6 +289,12 @@ bool GLViewport::removeModel(int modelId)
         }
         recomputeSceneBounds();
         updateSceneStats();
+        const bool hasVisibleModels = std::any_of(m_models.cbegin(), m_models.cend(), [](const SceneModel &model) {
+            return model.visible;
+        });
+        if (m_autoFitEnabled && hasVisibleModels) {
+            frameAll();
+        }
         emit modelListChanged();
         emit logMessage(tr("已删除模型: %1").arg(removedName), false);
         update();
@@ -312,6 +333,9 @@ bool GLViewport::setModelTransform(int modelId, const QVector3D &translation, co
     model->rotationEuler = rotationEuler;
     model->scale = QVector3D(qMax(0.001f, scale.x()), qMax(0.001f, scale.y()), qMax(0.001f, scale.z()));
     recomputeSceneBounds();
+    if (m_autoFitEnabled) {
+        frameAll();
+    }
     update();
     return true;
 }
