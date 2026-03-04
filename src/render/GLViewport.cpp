@@ -18,6 +18,12 @@
 #include "io/ModelData.h"
 #include "io/ModelLoader.h"
 
+#ifdef SIMPLE_VIEWER_HAS_IMGUIZMO
+#include <imgui.h>
+#include <imgui_impl_opengl3.h>
+#include <ImGuizmo.h>
+#endif
+
 namespace {
 constexpr float kGizmoPixelSize = 120.0f;
 constexpr float kGizmoLineWidth = 3.0f;
@@ -54,6 +60,13 @@ GLViewport::~GLViewport()
         model.pointCloud.clear();
     }
     m_shader.clear(this);
+#ifdef SIMPLE_VIEWER_HAS_IMGUIZMO
+    if (m_imguiInitialized) {
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui::DestroyContext();
+        m_imguiInitialized = false;
+    }
+#endif
     doneCurrent();
 }
 
@@ -395,6 +408,17 @@ void GLViewport::initializeGL()
 
     m_shader.load(this, ":/shaders/shaders/basic.vert", ":/shaders/shaders/blinn_phong.frag");
     uploadDefaultMesh();
+#ifdef SIMPLE_VIEWER_HAS_IMGUIZMO
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.DisplaySize = ImVec2(static_cast<float>(width()), static_cast<float>(height()));
+    ImGui_ImplOpenGL3_Init("#version 330 core");
+    m_imguiInitialized = true;
+#else
+    emit logMessage(tr("ImGuizmo files not found in third_party; using built-in gizmo."), false);
+#endif
 }
 
 void GLViewport::resizeGL(int w, int h)
@@ -512,15 +536,16 @@ void GLViewport::paintGL()
         }
     }
 
-    if (m_gizmoMode != GizmoMode::None) {
+    m_shader.release(this);
+
+    const bool gizmoDrawnByImGuizmo = drawImGuizmo(view, proj);
+    if (!gizmoDrawnByImGuizmo && m_gizmoMode != GizmoMode::None) {
         if (const SceneModel *selected = findModel(m_selectedModelId)) {
             glDisable(GL_DEPTH_TEST);
             drawGizmo(*selected, view, proj);
             glEnable(GL_DEPTH_TEST);
         }
     }
-
-    m_shader.release(this);
 }
 
 void GLViewport::keyPressEvent(QKeyEvent *event)
@@ -570,7 +595,17 @@ void GLViewport::wheelEvent(QWheelEvent *event)
 void GLViewport::mousePressEvent(QMouseEvent *event)
 {
     m_lastMousePos = event->pos();
+    m_leftMouseDown = m_leftMouseDown || event->button() == Qt::LeftButton;
+    m_middleMouseDown = m_middleMouseDown || event->button() == Qt::MiddleButton;
+    m_rightMouseDown = m_rightMouseDown || event->button() == Qt::RightButton;
     m_pressedGizmoAxis = GizmoAxis::None;
+
+#ifdef SIMPLE_VIEWER_HAS_IMGUIZMO
+    if (m_imguiInitialized && m_gizmoMode != GizmoMode::None && (ImGuizmo::IsOver() || ImGuizmo::IsUsing())) {
+        event->accept();
+        return;
+    }
+#endif
 
     if (event->button() == Qt::LeftButton && m_selectedModelId >= 0) {
         m_hoveredGizmoAxis = pickGizmoAxis(event->pos());
@@ -596,6 +631,15 @@ void GLViewport::mousePressEvent(QMouseEvent *event)
 
 void GLViewport::mouseMoveEvent(QMouseEvent *event)
 {
+#ifdef SIMPLE_VIEWER_HAS_IMGUIZMO
+    if (m_imguiInitialized && m_gizmoMode != GizmoMode::None && ImGuizmo::IsUsing()) {
+        m_lastMousePos = event->pos();
+        event->accept();
+        update();
+        return;
+    }
+#endif
+
     if (m_selectedModelId >= 0 && !m_gizmoDragging) {
         m_hoveredGizmoAxis = pickGizmoAxis(event->pos());
     }
@@ -685,10 +729,81 @@ void GLViewport::mouseReleaseEvent(QMouseEvent *event)
     m_pressedGizmoAxis = GizmoAxis::None;
     m_activeGizmoAxis = GizmoAxis::None;
 
+    m_leftMouseDown = m_leftMouseDown && event->button() != Qt::LeftButton;
+    m_middleMouseDown = m_middleMouseDown && event->button() != Qt::MiddleButton;
+    m_rightMouseDown = m_rightMouseDown && event->button() != Qt::RightButton;
+
     if (!pressedOnGizmo) {
         currentCamera()->handleMouseRelease(event->button(), event->pos());
     }
     event->accept();
+}
+
+bool GLViewport::drawImGuizmo(const QMatrix4x4 &view, const QMatrix4x4 &proj)
+{
+#ifdef SIMPLE_VIEWER_HAS_IMGUIZMO
+    if (!m_imguiInitialized || m_gizmoMode == GizmoMode::None || m_selectedModelId < 0) {
+        return false;
+    }
+
+    SceneModel *selected = findModel(m_selectedModelId);
+    if (selected == nullptr) {
+        return false;
+    }
+
+    syncImGuiIo();
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui::NewFrame();
+
+    ImGuizmo::BeginFrame();
+    ImGuizmo::SetOrthographic(false);
+    ImGuizmo::SetDrawlist();
+    ImGuizmo::SetRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height()));
+
+    QMatrix4x4 model = modelMatrix(*selected);
+    ImGuizmo::OPERATION operation = ImGuizmo::TRANSLATE;
+    if (m_gizmoMode == GizmoMode::Rotate) {
+        operation = ImGuizmo::ROTATE;
+    } else if (m_gizmoMode == GizmoMode::Scale) {
+        operation = ImGuizmo::SCALE;
+    }
+    const ImGuizmo::MODE mode = m_gizmoSpace == GizmoSpace::World ? ImGuizmo::WORLD : ImGuizmo::LOCAL;
+
+    ImGuizmo::Manipulate(view.constData(), proj.constData(), operation, mode, model.data());
+
+    if (ImGuizmo::IsUsing()) {
+        float t[3] = {0.0f, 0.0f, 0.0f};
+        float r[3] = {0.0f, 0.0f, 0.0f};
+        float sc[3] = {1.0f, 1.0f, 1.0f};
+        ImGuizmo::DecomposeMatrixToComponents(model.constData(), t, r, sc);
+        setModelTransform(selected->id,
+                          QVector3D(t[0], t[1], t[2]),
+                          QVector3D(r[0], r[1], r[2]),
+                          QVector3D(sc[0], sc[1], sc[2]));
+    }
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    return true;
+#else
+    Q_UNUSED(view);
+    Q_UNUSED(proj);
+    return false;
+#endif
+}
+
+void GLViewport::syncImGuiIo()
+{
+#ifdef SIMPLE_VIEWER_HAS_IMGUIZMO
+    ImGuiIO &io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(static_cast<float>(width()), static_cast<float>(height()));
+    io.DisplayFramebufferScale = ImVec2(static_cast<float>(devicePixelRatioF()), static_cast<float>(devicePixelRatioF()));
+    io.MousePos = ImVec2(static_cast<float>(m_lastMousePos.x()), static_cast<float>(m_lastMousePos.y()));
+    io.MouseDown[0] = m_leftMouseDown;
+    io.MouseDown[1] = m_rightMouseDown;
+    io.MouseDown[2] = m_middleMouseDown;
+    io.DeltaTime = 1.0f / 60.0f;
+#endif
 }
 
 Camera *GLViewport::currentCamera()

@@ -165,6 +165,8 @@ private:
                        const QMatrix4x4 &view, const QMatrix4x4 &proj);
     void drawGizmoCircle(const QVector3D &center, const QVector3D &axis, float radius, const QVector3D &color,
                          const QMatrix4x4 &view, const QMatrix4x4 &proj, float lineWidth = 3.0f);
+    bool drawImGuizmo(const QMatrix4x4 &view, const QMatrix4x4 &proj);
+    void syncImGuiIo();
 
     QPoint m_lastMousePos;
     OrbitCamera m_orbitCamera;
@@ -199,4 +201,8 @@ private:
 
     QElapsedTimer m_frameTimer;
     QTimer m_updateTimer;
+    bool m_imguiInitialized{false};
+    bool m_leftMouseDown{false};
+    bool m_middleMouseDown{false};
+    bool m_rightMouseDown{false};
 };
