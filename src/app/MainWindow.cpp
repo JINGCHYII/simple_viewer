@@ -17,6 +17,7 @@
 #include <QTabWidget>
 #include <QTextEdit>
 #include <QToolButton>
+#include <QToolBar>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWidgetAction>
@@ -65,6 +66,11 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(m_viewport, &GLViewport::renderModeChanged, this, [this](GLViewport::RenderMode) {
         refreshStatusLabels();
+    });
+    connect(m_viewport, &GLViewport::gizmoModeChanged, this, [this](GLViewport::GizmoMode mode) {
+        m_gizmoTranslateAction->setChecked(mode == GLViewport::GizmoMode::Translate);
+        m_gizmoRotateAction->setChecked(mode == GLViewport::GizmoMode::Rotate);
+        m_gizmoScaleAction->setChecked(mode == GLViewport::GizmoMode::Scale);
     });
     connect(m_viewport, &GLViewport::modelStatsChanged, this, [this](int vertexCount, int faceCount) {
         m_vertexCount = vertexCount;
@@ -148,7 +154,42 @@ void MainWindow::setupMenus()
     shortcutsMenu->addAction(tr("Front (1)"), m_viewport, &GLViewport::setFrontView);
     shortcutsMenu->addAction(tr("Right (3)"), m_viewport, &GLViewport::setRightView);
     shortcutsMenu->addAction(tr("Top (7)"), m_viewport, &GLViewport::setTopView);
-    shortcutsMenu->addAction(tr("Reset Camera (R)"), m_viewport, &GLViewport::resetCamera);
+    shortcutsMenu->addAction(tr("Reset Camera (0)"), m_viewport, &GLViewport::resetCamera);
+
+    auto *gizmoMenu = viewMenu->addMenu(tr("Gizmo Mode"));
+    auto *gizmoGroup = new QActionGroup(this);
+
+    m_gizmoTranslateAction = gizmoMenu->addAction(tr("Translate (W)"));
+    m_gizmoTranslateAction->setCheckable(true);
+    m_gizmoTranslateAction->setShortcut(QKeySequence(Qt::Key_W));
+    m_gizmoTranslateAction->setShortcutContext(Qt::WindowShortcut);
+    m_gizmoTranslateAction->setChecked(true);
+    gizmoGroup->addAction(m_gizmoTranslateAction);
+
+    m_gizmoRotateAction = gizmoMenu->addAction(tr("Rotate (E)"));
+    m_gizmoRotateAction->setCheckable(true);
+    m_gizmoRotateAction->setShortcut(QKeySequence(Qt::Key_E));
+    m_gizmoRotateAction->setShortcutContext(Qt::WindowShortcut);
+    gizmoGroup->addAction(m_gizmoRotateAction);
+
+    m_gizmoScaleAction = gizmoMenu->addAction(tr("Scale (R)"));
+    m_gizmoScaleAction->setCheckable(true);
+    m_gizmoScaleAction->setShortcut(QKeySequence(Qt::Key_R));
+    m_gizmoScaleAction->setShortcutContext(Qt::WindowShortcut);
+    gizmoGroup->addAction(m_gizmoScaleAction);
+
+    connect(m_gizmoTranslateAction, &QAction::triggered, this, [this]() {
+        m_viewport->setGizmoMode(GLViewport::GizmoMode::Translate);
+    });
+    connect(m_gizmoRotateAction, &QAction::triggered, this, [this]() {
+        m_viewport->setGizmoMode(GLViewport::GizmoMode::Rotate);
+    });
+    connect(m_gizmoScaleAction, &QAction::triggered, this, [this]() {
+        m_viewport->setGizmoMode(GLViewport::GizmoMode::Scale);
+    });
+
+    auto *gizmoToolbar = addToolBar(tr("Gizmo"));
+    gizmoToolbar->addActions(gizmoGroup->actions());
 
     auto *pointMenu = viewMenu->addMenu(tr("Point Cloud Settings"));
 

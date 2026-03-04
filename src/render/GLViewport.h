@@ -35,6 +35,19 @@ public:
         HeightRamp,
     };
 
+    enum class GizmoMode {
+        Translate,
+        Rotate,
+        Scale,
+    };
+
+    enum class GizmoAxis {
+        None,
+        X,
+        Y,
+        Z,
+    };
+
     struct ModelInfo
     {
         int id{-1};
@@ -63,6 +76,9 @@ public:
     void setPointColorMode(PointColorMode mode);
     PointColorMode pointColorMode() const;
 
+    void setGizmoMode(GizmoMode mode);
+    GizmoMode gizmoMode() const;
+
     void setAutoFitEnabled(bool enabled);
     bool autoFitEnabled() const;
 
@@ -86,6 +102,7 @@ public:
 signals:
     void cameraModeChanged(GLViewport::CameraMode mode);
     void renderModeChanged(GLViewport::RenderMode mode);
+    void gizmoModeChanged(GLViewport::GizmoMode mode);
     void modelStatsChanged(int vertexCount, int faceCount);
     void modelListChanged();
     void selectedModelChanged(int modelId);
@@ -131,6 +148,15 @@ private:
     void recomputeSceneBounds();
     QMatrix4x4 modelMatrix(const SceneModel &model) const;
     void updateSceneStats();
+    QVector3D selectedModelWorldCenter(const SceneModel &model) const;
+    float worldUnitsPerPixelAt(const QVector3D &worldPoint) const;
+    QPointF projectToScreen(const QVector3D &worldPoint, const QMatrix4x4 &viewProj) const;
+    GizmoAxis pickGizmoAxis(const QPoint &screenPos) const;
+    void drawGizmo(const SceneModel &model, const QMatrix4x4 &view, const QMatrix4x4 &proj);
+    void drawGizmoLine(const QVector3D &start, const QVector3D &end, const QVector3D &color,
+                       const QMatrix4x4 &view, const QMatrix4x4 &proj);
+    void drawGizmoCircle(const QVector3D &center, const QVector3D &axis, float radius, const QVector3D &color,
+                         const QMatrix4x4 &view, const QMatrix4x4 &proj);
 
     QPoint m_lastMousePos;
     OrbitCamera m_orbitCamera;
@@ -138,6 +164,14 @@ private:
     CameraMode m_cameraMode{CameraMode::Orbit};
     RenderMode m_renderMode{RenderMode::Solid};
     PointColorMode m_pointColorMode{PointColorMode::VertexColor};
+    GizmoMode m_gizmoMode{GizmoMode::Translate};
+    GizmoAxis m_hoveredGizmoAxis{GizmoAxis::None};
+    GizmoAxis m_activeGizmoAxis{GizmoAxis::None};
+    bool m_gizmoDragging{false};
+    QPoint m_gizmoDragStartScreen;
+    QVector3D m_gizmoStartTranslation{0.0f, 0.0f, 0.0f};
+    QVector3D m_gizmoStartRotation{0.0f, 0.0f, 0.0f};
+    QVector3D m_gizmoStartScale{1.0f, 1.0f, 1.0f};
     float m_pointSize{3.0f};
     bool m_autoFitEnabled{true};
 
